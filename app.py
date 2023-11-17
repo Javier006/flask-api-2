@@ -2,6 +2,7 @@ from flask import Flask, jsonify, request, make_response
 from flask_cors import CORS
 import os, uuid
 from flask_bcrypt import Bcrypt
+from flask_migrate import Migrate
 from werkzeug.utils import secure_filename
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 from models import db, Users, Profiles, Users_profiles, Type, Model, Brand, Pc_users, State, Pc, State_pc
@@ -21,6 +22,7 @@ jwt = JWTManager(app)
 bcrypt = Bcrypt(app)
 #supports_credentials permite el envio de cookies
 CORS(app, supports_credentials=True)
+migrate = Migrate(app, db)
 db.init_app(app)
 
 @app.route('/login', methods=['POST'])
@@ -95,9 +97,19 @@ def add_user_pc():
     if request.method == 'POST':
         lastname_user = request.form['lastname_user']
         create_date = request.form['create_date']
+        rut_user = request.form['rut_user']
+        
+        existe_rut = Pc_users.query.filter_by(rut_user=rut_user).first()
+        if  existe_rut:
+            return jsonify({"estado":"El rut ya existe."}),400
 
-        new_user_pc = Pc_users(lastname_user=lastname_user,create_date=create_date)
+        new_user_pc = Pc_users(lastname_user=lastname_user,create_date=create_date,rut_user=rut_user)
         db.session.add(new_user_pc)
+
+        estado = State.query.filter_by(name_state='no asignado').first()
+        new_statu_user = State_pc(cod_pusers_id=new_user_pc.cod_pusers,cod_state_id=estado.cod_state)
+        db.session.add(new_statu_user)
+
         db.session.commit()
         return jsonify({"estado":"usuario creado"})
     return jsonify({"estado":"Error al agregar"})
@@ -116,9 +128,14 @@ def create():
         current_user_id = get_jwt_identity()
         current_user = Users.query.get(current_user_id)
 
-        existe_user = Pc.query.filter_by(serial_number=serial_name).first()
-        if existe_user:
-            return jsonify({'message': 'El nombre de computador ya está en uso. Elige otro.'}), 400
+        existe_serial_number = Pc.query.filter_by(serial_number=serial_name).first()
+        existe_name_computer = Pc.query.filter_by(name_computer=name_computer).first()
+        if existe_serial_number and existe_name_computer:
+            return jsonify({'message': 'El nombre de numero de serial y nombre computador ya está en uso.'}), 400
+        elif existe_name_computer:
+            return jsonify({'message': 'El nombre de computador ya está en uso.'}), 401
+        elif existe_serial_number:
+            return  jsonify({'message': 'El numero de serial ya está en uso.'}), 402
 
         new_pc = Pc(name_computer=name_computer,serial_number=serial_name,date_received=date_received,cod_model_id=cod_model_id,cod_brand_id=cod_brand_id,cod_type_id=cod_type_id,cod_users_id=current_user.cod_users)
         db.session.add(new_pc)
@@ -149,32 +166,60 @@ def datos():
     }
     return jsonify(datos)    
 
+@app.route('/get_pc_users', methods = ['GET'])
+def get_pc_users():
+
+    resultado = db.session.query(State_pc)\
+                .join(Pc_users, State_pc.cod_pusers_id == Pc_users.cod_pusers,isouter=True)\
+                .join(State, State_pc.cod_state_id == State.cod_state)\
+                .add_columns(Pc_users.rut_user,Pc_users.lastname_user,State.name_state,Pc_users.create_date)\
+                .filter(State_pc.cod_pusers_id.isnot(None))\
+                .group_by(State_pc.cod_pusers_id)\
+                .order_by(State_pc.cod_state_id.desc())\
+                .all()
+
+    data = []
+    for user in resultado:
+        data.append(
+            {
+                "lastname_user": user.lastname_user,
+                "create_date" : user.create_date,
+                "rut_user" : user.rut_user,
+                "state_name" : user.name_state
+            }
+        )
+    return jsonify(data)
 
 @app.route('/get_pc', methods = ['GET','POST'])
 def get_pc():
 
-    resultado = db.session.query(Pc,Model,Brand,Type,State_pc,State)\
-                .join(Model, Pc.cod_model_id==Model.cod_model)\
-                .join(Brand, Pc.cod_brand_id==Brand.cod_brand)\
-                .join(Type, Pc.cod_type_id==Type.cod_type)\
-                .join(State_pc, Pc.cod_pc==State_pc.cod_pc_id)\
-                .join(State, State.cod_state == State_pc.cod_state_id )\
-                .add_columns(Pc.cod_pc,Pc.name_computer,Pc.serial_number,Pc.date_received,Model.name,Brand.name,Type.name,State.name_state)\
-                .order_by(Pc.date_received.desc()).all()
+    resultado = db.session.query(State_pc)\
+                .join(Pc, State_pc.cod_pc_id==Pc.cod_pc,isouter=True)\
+                .join(Brand, Brand.cod_brand == Pc.cod_brand_id,isouter=True)\
+                .join(Model, Model.cod_model == Pc.cod_model_id,isouter=True)\
+                .join(Type, Type.cod_type == Pc.cod_type_id ,isouter=True)\
+                .join(State, State_pc.cod_state_id == State.cod_state )\
+                .add_columns(Pc.cod_pc,Pc.name_computer,Pc.serial_number,State.name_state,Pc.date_received,Brand.name,Model.name,Pc.cod_type_id)\
+                .filter(State_pc.cod_pc_id.isnot(None))\
+                .group_by(State_pc.cod_pc_id)\
+                .order_by(State_pc.cod_state_id.desc())\
+                .all()
+    
     db.session.commit()
 
     data = []
 
     for computer in resultado:
         data.append({
-            'cod_pc': computer.Pc.cod_pc,
-            'name_computer': computer.Pc.name_computer,
-            'serial_number': computer.Pc.serial_number,
-            'date_received': computer.Pc.date_received,
-            'name_model': computer.Model.name,
-            'name_brand': computer.Brand.name,
-            'name_type': computer.Type.name,
-            'name_state': computer.State.name_state
+            'cod_pc': computer.cod_pc,
+            'name_computer': computer.name_computer,
+            'serial_number': computer.serial_number,
+            'name_state': computer.name_state,
+            'date_received': computer.date_received,
+            'name_model': computer.name,
+            'name_brand': computer.name,
+            'name_type': computer.name,
+            
         })       
 
     return jsonify(data)
@@ -202,11 +247,9 @@ def addu():
     new_model = Model(name='modelo1')
     new_model2 = Model(name='modelo2')
     new_model3 = Model(name='modelo3')
-    new_state = State(name_state='Nuevo')
     new_state2 = State(name_state='Asignado')
     new_state3 = State(name_state='No asignado')
     new_state4 = State(name_state='Mal estado')
-    new_state5 = State(name_state='Bueno')
     new_user = Users(nick_name='javier', u_password='$2b$12$9q6oTe2dQoV/YdPIfrVAZeFA4P3fZYdHfQzHmZkeatX2dJto/eiRW')
     db.session.add(new_user)
     db.session.add(new_type)
@@ -219,11 +262,9 @@ def addu():
     db.session.add(new_model)
     db.session.add(new_model2)
     db.session.add(new_model3)
-    db.session.add(new_state)
     db.session.add(new_state2)
     db.session.add(new_state3)
     db.session.add(new_state4)
-    db.session.add(new_state5)
     db.session.commit()
 
     return jsonify({'datos':'Cargados'})

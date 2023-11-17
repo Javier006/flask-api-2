@@ -56,7 +56,7 @@ class Brand(db.Model):
 class Pc(db.Model):
     __tablename__= 'pc'
     cod_pc = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    name_computer = db.Column(db.String(30))
+    name_computer = db.Column(db.String(50), nullable=False, unique=True)
     serial_number = db.Column(db.String(50), nullable=False, unique=True)
     date_received = db.Column(db.DateTime)
     cod_model_id = db.Column(db.Integer, db.ForeignKey('model.cod_model'))
@@ -83,6 +83,7 @@ class State_pc(db.Model):
 class Pc_users(db.Model):
     __tabalename__ = 'pc_users'
     cod_pusers = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    rut_user = db.Column(db.String(12))
     lastname_user = db.Column(db.String(100))
     create_date = db.Column(db.DateTime)
     
