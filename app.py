@@ -73,7 +73,16 @@ def register():
 def check_auth():
     current_user_id = get_jwt_identity()
     current_user = Users.query.get(current_user_id)
-    return jsonify({'authenticated': True, 'cod_users': current_user.cod_users, 'nick_name': current_user.nick_name})
+
+    user_profile = Users_profiles.query.filter_by(cod_users_id=current_user.cod_users).first()
+
+    user_profile_details = {
+        'cod_users' : user_profile.cod_users_id,
+        'profile' : user_profile.cod_profile_id
+    }
+
+    print(user_profile.cod_profile_id)
+    return jsonify({'authenticated': True, 'user_profile': user_profile_details})
 
 #carga pdf ¿donde?
 @app.route('/upload_pdf', methods=['POST'])
@@ -169,13 +178,12 @@ def datos():
 @app.route('/get_pc_users', methods = ['GET'])
 def get_pc_users():
 
-    resultado = db.session.query(State_pc)\
+    resultado = db.session.query(State_pc,Pc_users.rut_user,Pc_users.lastname_user,State.name_state,Pc_users.create_date)\
                 .join(Pc_users, State_pc.cod_pusers_id == Pc_users.cod_pusers,isouter=True)\
                 .join(State, State_pc.cod_state_id == State.cod_state)\
-                .add_columns(Pc_users.rut_user,Pc_users.lastname_user,State.name_state,Pc_users.create_date)\
                 .filter(State_pc.cod_pusers_id.isnot(None))\
                 .group_by(State_pc.cod_pusers_id)\
-                .order_by(State_pc.cod_state_id.desc())\
+                .order_by(Pc_users.create_date.desc())\
                 .all()
 
     data = []
@@ -193,16 +201,15 @@ def get_pc_users():
 @app.route('/get_pc', methods = ['GET','POST'])
 def get_pc():
 
-    resultado = db.session.query(State_pc)\
-                .join(Pc, State_pc.cod_pc_id==Pc.cod_pc,isouter=True)\
-                .join(Brand, Brand.cod_brand == Pc.cod_brand_id,isouter=True)\
-                .join(Model, Model.cod_model == Pc.cod_model_id,isouter=True)\
-                .join(Type, Type.cod_type == Pc.cod_type_id ,isouter=True)\
-                .join(State, State_pc.cod_state_id == State.cod_state )\
-                .add_columns(Pc.cod_pc,Pc.name_computer,Pc.serial_number,State.name_state,Pc.date_received,Brand.name,Model.name,Pc.cod_type_id)\
+    resultado = db.session.query(State_pc,Pc.cod_pc,Pc.name_computer,Pc.serial_number,State.name_state,Pc.date_received,Model.name.label('model_name'),Brand.name.label('brand_name'),Type.name.label('type_name'))\
+                .join(Pc, State_pc.cod_pc_id == Pc.cod_pc, isouter=True)\
+                .join(Brand, Brand.cod_brand == Pc.cod_brand_id, isouter=True)\
+                .join(Model, Model.cod_model == Pc.cod_model_id, isouter=True)\
+                .join(Type, Type.cod_type == Pc.cod_type_id, isouter=True)\
+                .join(State, State_pc.cod_state_id == State.cod_state)\
                 .filter(State_pc.cod_pc_id.isnot(None))\
                 .group_by(State_pc.cod_pc_id)\
-                .order_by(State_pc.cod_state_id.desc())\
+                .order_by(Pc.date_received.desc())\
                 .all()
     
     db.session.commit()
@@ -216,9 +223,9 @@ def get_pc():
             'serial_number': computer.serial_number,
             'name_state': computer.name_state,
             'date_received': computer.date_received,
-            'name_model': computer.name,
-            'name_brand': computer.name,
-            'name_type': computer.name,
+            'name_model': computer.model_name,
+            'name_brand': computer.brand_name,
+            'name_type': computer.type_name,
             
         })       
 
