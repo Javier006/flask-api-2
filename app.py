@@ -3,6 +3,7 @@ from flask_cors import CORS
 import os, uuid
 from flask_bcrypt import Bcrypt
 from flask_migrate import Migrate
+from sqlalchemy import desc
 from werkzeug.utils import secure_filename
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 from models import db, Users, Profiles, Users_profiles, Type, Model, Brand, Pc_users, State, Pc, State_pc
@@ -54,7 +55,7 @@ def register():
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
-        
+        profile = request.form['profile']
         existe_user = Users.query.filter_by(nick_name=username).first()
         if existe_user:
             return jsonify({'message': 'El nombre de usuario ya está en uso. Elige otro.'}), 400
@@ -62,6 +63,9 @@ def register():
         hashed_password = bcrypt.generate_password_hash(password).decode('utf-8')
         new_user = Users(nick_name=username, u_password=hashed_password)
         db.session.add(new_user)
+
+        add_profile = Users_profiles(cod_users_id=new_user.cod_users,cod_profile_id=profile)
+        db.session.add(add_profile)
         db.session.commit()
 
         return jsonify({'message': 'Usuario registrado exitosamente'}), 201
@@ -164,23 +168,27 @@ def datos():
     models = Model.query.all()
     types = Type.query.all()
     brands = Brand.query.all()
+    profiles =  Profiles.query.all()
     
     models_json = [model.obtener() for model in models]
     types_json = [tipo.obtener() for tipo in types]
     brand_json = [brand.obtener() for brand in brands]
+    profiles_json = [profile.obtener() for profile in profiles]
     datos = {
         'model':models_json,
         'type':types_json,
-        'brand': brand_json
+        'brand': brand_json,
+        'profile': profiles_json
     }
     return jsonify(datos)    
 
 @app.route('/get_pc_users', methods = ['GET'])
 def get_pc_users():
 
-    resultado = db.session.query(State_pc,Pc_users.rut_user,Pc_users.lastname_user,State.name_state,Pc_users.create_date)\
+    resultado = db.session.query(State_pc,Pc_users.rut_user,Pc_users.lastname_user,Pc.serial_number,State.name_state,Pc_users.create_date,Pc_users.cod_pusers)\
                 .join(Pc_users, State_pc.cod_pusers_id == Pc_users.cod_pusers,isouter=True)\
                 .join(State, State_pc.cod_state_id == State.cod_state)\
+                .join(Pc, State_pc.cod_pc_id == Pc.cod_pc,isouter=True)\
                 .filter(State_pc.cod_pusers_id.isnot(None))\
                 .group_by(State_pc.cod_pusers_id)\
                 .order_by(Pc_users.create_date.desc())\
@@ -190,10 +198,12 @@ def get_pc_users():
     for user in resultado:
         data.append(
             {
+                "cod_pusers" : user.cod_pusers,
                 "lastname_user": user.lastname_user,
                 "create_date" : user.create_date,
                 "rut_user" : user.rut_user,
-                "state_name" : user.name_state
+                "state_name" : user.name_state,
+                "serial_number" : user.serial_number
             }
         )
     return jsonify(data)
@@ -201,14 +211,18 @@ def get_pc_users():
 @app.route('/get_pc', methods = ['GET','POST'])
 def get_pc():
 
-    resultado = db.session.query(State_pc,Pc.cod_pc,Pc.name_computer,Pc.serial_number,State.name_state,Pc.date_received,Model.name.label('model_name'),Brand.name.label('brand_name'),Type.name.label('type_name'))\
+    resultado = db.session.query(State_pc,Pc.cod_pc,Pc.name_computer,Pc.serial_number,Pc_users.lastname_user,State.name_state,Pc.date_received,State_pc.deliver_date,Model.name.label('model_name'),Brand.name.label('brand_name'),Type.name.label('type_name'))\
                 .join(Pc, State_pc.cod_pc_id == Pc.cod_pc, isouter=True)\
                 .join(Brand, Brand.cod_brand == Pc.cod_brand_id, isouter=True)\
                 .join(Model, Model.cod_model == Pc.cod_model_id, isouter=True)\
                 .join(Type, Type.cod_type == Pc.cod_type_id, isouter=True)\
+                .join(Pc_users, State_pc.cod_pusers_id == Pc_users.cod_pusers, isouter=True)\
                 .join(State, State_pc.cod_state_id == State.cod_state)\
+                .group_by(State_pc.cod_state_pc.desc())\
+                .distinct(State_pc.cod_pc_id)\
                 .filter(State_pc.cod_pc_id.isnot(None))\
-                .group_by(State_pc.cod_pc_id)\
+                .order_by(State_pc.cod_pc_id)\
+                .order_by(State_pc.deliver_date.desc())\
                 .order_by(Pc.date_received.desc())\
                 .all()
     
@@ -223,6 +237,8 @@ def get_pc():
             'serial_number': computer.serial_number,
             'name_state': computer.name_state,
             'date_received': computer.date_received,
+            'date_deliver': computer.deliver_date,
+            'name_puser': computer.lastname_user,
             'name_model': computer.model_name,
             'name_brand': computer.brand_name,
             'name_type': computer.type_name,
@@ -238,7 +254,12 @@ def listado():
     current_user = Users.query.get(current_user_id)
     return f'Hello, {current_user.nick_name}!'
 
+@app.route('get_noasignado',  methods = ['GET'])
+def get_noasignado():
 
+    resultado = db.session.query(State_pc)
+
+    return jsonify()
 
 
 @app.route('/datos_prueba')

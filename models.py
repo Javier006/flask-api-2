@@ -14,6 +14,12 @@ class Profiles(db.Model):
     cod_profile = db.Column(db.Integer, primary_key=True, autoincrement=True)
     name = db.Column(db.String(30))
 
+    def obtener(self):
+        return{
+            'cod_profile' : self.cod_profile,
+            'name_profile' : self.name
+        }
+
 class Users_profiles(db.Model):
     __tabalename__ = 'users_profiles'
     cod_profile = db.Column(db.Integer, primary_key=True, autoincrement=True)
