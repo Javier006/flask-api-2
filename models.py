@@ -87,6 +87,7 @@ class Employes(db.Model):
     create_date = db.Column(db.DateTime)
     cod_employe_id = db.Column(db.Integer, db.ForeignKey('employes_state.cod_employe_state'))
     cod_pc_id = db.Column(db.Integer, db.ForeignKey('pc.cod_pc'))
+    date_delivery = db.Column(db.DateTime)
 
 class Employes_state(db.Model):
     __tablename__= 'employes_state'

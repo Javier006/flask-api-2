@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, request, make_response
+from flask import Flask, jsonify, request, make_response, send_from_directory
 from flask_cors import CORS
 import os, uuid, datetime
 from flask_bcrypt import Bcrypt
@@ -133,28 +133,45 @@ def edit_employe():
     if request.method == 'POST':
 
         gps = request.form['gps_id']
-        lastname = request.form['lastname']
-        serialname = request.form['serialname']
-        archivo_pdf = request.form['pdf_file']
+        serial_number = request.form['serial_number']
+        archivo = request.files['pdf_file']
+        date_delivery = request.form['datedelivery']
 
-        buscar_serial = Pc.query.filter_by(serial_number=serialname).first()
-        buscar_gps = Employes.query.filter_by(gps_id=gps).first()
-        db.session.commit() 
-        if buscar_serial:
+        print("gps "+gps)
+        print("serial number "+serial_number)
+        print(archivo)
+        print("date_delivery "+date_delivery)
 
-            buscar_serial.cod_state_id = 1
-            db.session.commit() 
-            buscar_gps.cod_pc_id = buscar_serial.cod_pc    
+        data_pc = Pc.query.filter_by(serial_number=serial_number).first()
+         
+        data_employes = Employes.query.filter_by(gps_id=gps).first()
+
+        if archivo and data_pc and data_employes:
+            filename = secure_filename(archivo.filename)
+            unique_filename = str(uuid.uuid4())+'_'+filename
+            archivo.save(os.path.join(app.config['UPLOAD_FOLDER'],unique_filename))
+            #editar estado de pc. 1 = asignado
+            data_pc.cod_state_id = 1
             db.session.commit()
-            #buscar_gps.archivo = archivo_pdf
-            #db.session.commit()
+            #asignar pc a empleado
+            data_employes.cod_pc_id = data_pc.cod_pc    
+            db.session.commit()
+            #añadir nombre de archivo 
+            data_employes.archivo = unique_filename
+            db.session.commit()
+            #añadir fecha de entrega
+            data_employes.date_delivery = date_delivery
+            db.session.commit()
 
-            return jsonify({"estado":"serial encontrada"})
+            return jsonify({'message': 'Editado exitosamente'})
 
         return jsonify({"estado":"error al editar"})
 
     return jsonify({"estado":"error al editar"})
 
+@app.route('/uploads/<name>')
+def download_file(name):
+    return send_from_directory(app.config["UPLOAD_FOLDER"], name)
 
 @app.route('/add_pc', methods = ['POST'])
 @jwt_required()
@@ -217,7 +234,7 @@ def datos():
 @app.route('/get_pc_users', methods = ['GET'])
 def get_pc_users():
 
-    resultado = db.session.query(Employes,Employes.cod_employes,Pc.serial_number,Employes.archivo, Employes.gps_id,Employes.lastname_user,Employes.create_date,Employes_state.state_employe)\
+    resultado = db.session.query(Employes,Employes.cod_employes,Pc.serial_number,Employes.archivo,Employes.date_delivery, Employes.gps_id,Employes.lastname_user,Employes.create_date,Employes_state.state_employe)\
                 .join(Employes_state, Employes.cod_employe_id == Employes_state.cod_employe_state)\
                 .join(Pc, Employes.cod_pc_id == Pc.cod_pc, isouter=True)\
                 .all()
@@ -231,7 +248,8 @@ def get_pc_users():
                 "create_date" : user.create_date,
                 "gps_id" : user.gps_id,
                 "serial_number" : user.serial_number,
-                "archivo" : user.archivo
+                "archivo" : user.archivo,
+                "date_delivery" : user.date_delivery
             }
         )
 
