@@ -35,13 +35,19 @@ class Type(db.Model):
     def obtener(self):
         return{
             'cod_type':self.cod_type,
-            'name':self.name_type
+            'name_type':self.name_type
         }
     
 class State(db.Model):
     __tablename__= 'state'
     cod_state = db.Column(db.Integer, primary_key=True, autoincrement=True)
     name_state = db.Column(db.String(20))
+
+    def obtener(self):
+        return{
+            'cod_state': self.cod_state,
+            'name_state': self.name_state
+        }
 
 class Model(db.Model):
     __tabalename__ = 'model'
@@ -51,7 +57,7 @@ class Model(db.Model):
     def obtener(self):
         return{
             'cod_model':self.cod_model,
-            'name':self.name_model
+            'name_model':self.name_model
         }
 
 class Brand(db.Model):
@@ -62,14 +68,14 @@ class Brand(db.Model):
     def obtener(self):
         return{
             'cod_brand':self.cod_brand,
-            'name':self.name_brand
+            'name_brand':self.name_brand
         }
 
 class Pc(db.Model):
     __tablename__= 'pc'
     cod_pc = db.Column(db.Integer, primary_key=True, autoincrement=True)
     name_computer = db.Column(db.String(50), nullable=False, unique=True)
-    serial_number = db.Column(db.String(50), nullable=False, unique=True)
+    service_tag = db.Column(db.String(50), nullable=False, unique=True)
     date_received = db.Column(db.DateTime)
     cod_model_id = db.Column(db.Integer, db.ForeignKey('model.cod_model'))
     cod_brand_id = db.Column(db.Integer, db.ForeignKey('brand.cod_brand'))
@@ -103,6 +109,7 @@ class Log(db.Model):
     date_log = db.Column(db.DateTime)
     state_log = db.Column(db.String(12))
     archivo_log = db.Column(db.String(200))
+
 
 
     

@@ -3,7 +3,6 @@ from flask_cors import CORS
 import os, uuid, datetime
 from flask_bcrypt import Bcrypt
 from flask_migrate import Migrate
-from sqlalchemy import desc
 from werkzeug.utils import secure_filename
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 from models import db, Users, Profiles, Users_profiles, Type, Model, Brand, State, Pc, Employes, Employes_state, Log
@@ -118,31 +117,36 @@ def add_user_pc():
         existe_rut = Employes.query.filter_by(gps_id=gps).first()
         if  existe_rut:
             return jsonify({"estado":"El GPS id ya esta en uso."}),400
-
+        #agregar empleado
         new_user_pc = Employes(lastname_user=lastname_user, create_date=create_date, gps_id=gps,cod_employe_id=1)
         db.session.add(new_user_pc)
         db.session.commit()
+        #registrar Log
         
 
         return jsonify({"estado":"usuario creado"})
     return jsonify({"estado":"Error al agregar"})
 
 @app.route('/edit_employes' , methods=['POST'])
+@jwt_required()
 def edit_employe():
 
     if request.method == 'POST':
 
         gps = request.form['gps_id']
-        serial_number = request.form['serial_number']
+        service_tag = request.form['service_tag']
         archivo = request.files['pdf_file']
         date_delivery = request.form['datedelivery']
 
-        print("gps "+gps)
-        print("serial number "+serial_number)
-        print(archivo)
-        print("date_delivery "+date_delivery)
+        current_user_id = get_jwt_identity()
+        current_user = Users.query.get(current_user_id)
 
-        data_pc = Pc.query.filter_by(serial_number=serial_number).first()
+        #print("gps "+gps)
+        #print("serial number "+service_tag)
+        #print(archivo)
+        #print("date_delivery "+date_delivery)
+
+        data_pc = Pc.query.filter_by(service_tag=service_tag).first()
          
         data_employes = Employes.query.filter_by(gps_id=gps).first()
 
@@ -153,11 +157,15 @@ def edit_employe():
             archivo.save(os.path.join(app.config['UPLOAD_FOLDER'],unique_filename))
 
             if data_employes.cod_pc_id:
-                #registrar LOG
-                
 
-                #quitar pc a empleado // 2 = no asignado
+                
+                #Registrar LOG - quitar pc
+                new_log_quitar = Log(cod_pc_id=data_employes.cod_pc_id,cod_employe_id=data_employes.cod_employes,cod_user_id=current_user.cod_user,date_log=date_delivery,state_log='remover notebook',archivo_log=data_employes.archivo)
+                db.session.add(new_log_quitar)
+                db.session.commit()
+
                 quitar_pc = Pc.query.filter_by(cod_pc=data_employes.cod_pc_id).first()
+                #quitar pc a empleado // 2 = no asignado
                 quitar_pc.cod_state_id = 2
                 db.session.commit()
                 #editar estado de pc. 1 = asignado
@@ -169,8 +177,16 @@ def edit_employe():
                 #editar fecha de entrega
                 data_employes.date_delivery = date_delivery
                 db.session.commit()
-                return jsonify({"mensaje":"computador reasignado"})
+                #editar a nuevo archivo
+                data_employes.archivo = unique_filename
+                db.session.commit()
+                #Registrar LOG - asignar pc nuevo pc
+                new_log_asignar = Log(cod_pc_id=data_pc.cod_pc, cod_employe_id=data_employes.cod_employes, cod_user_id=current_user.cod_user, date_log=date_delivery,state_log='asignado',archivo_log=unique_filename)
+                db.session.add(new_log_asignar)
+                db.session.commit()
 
+                return jsonify({"mensaje":"computador reasignado"})
+                
             #editar estado de pc. 1 = asignado
             data_pc.cod_state_id = 1
             db.session.commit()
@@ -182,6 +198,11 @@ def edit_employe():
             db.session.commit()
             #añadir fecha de entrega
             data_employes.date_delivery = date_delivery
+            db.session.commit()
+
+            #Registrar LOG - asignar pc
+            new_log_asignar = Log(cod_pc_id=data_pc.cod_pc, cod_employe_id=data_employes.cod_employes, cod_user_id=current_user.cod_user, data_log=date_delivery,state_log='asignado',archivo_log=unique_filename)
+            db.session.add(new_log_asignar)
             db.session.commit()
 
             return jsonify({'message': 'Editado exitosamente'})
@@ -205,31 +226,30 @@ def create():
         cod_brand_id = request.form['namebrand']
         cod_type_id = request.form['nametype']
         #usuario login
-        current_user_id = get_jwt_identity()
-        current_user = Users.query.get(current_user_id)
+        if name_computer and serial_name and date_received and cod_brand_id and cod_model_id and cod_type_id:
+            current_user_id = get_jwt_identity()
+            current_user = Users.query.get(current_user_id)
 
-        existe_serial_number = Pc.query.filter_by(serial_number=serial_name).first()
-        existe_name_computer = Pc.query.filter_by(name_computer=name_computer).first()
-        if existe_serial_number and existe_name_computer:
-            return jsonify({'message': 'El nombre de numero de serial y nombre computador ya está en uso.'}), 400
-        elif existe_name_computer:
-            return jsonify({'message': 'El nombre de computador ya está en uso.'}), 401
-        elif existe_serial_number:
-            return  jsonify({'message': 'El numero de serial ya está en uso.'}), 402
-        
+            existe_service_tag = Pc.query.filter_by(service_tag=serial_name).first()
+            existe_name_computer = Pc.query.filter_by(name_computer=name_computer).first()
+            if existe_service_tag and existe_name_computer:
+                return jsonify({'message': 'El nombre de numero de serial y nombre computador ya está en uso.'}), 400
+            elif existe_name_computer:
+                return jsonify({'message': 'El nombre de computador ya está en uso.'}), 401
+            elif existe_service_tag:
+                return  jsonify({'message': 'El numero de serial ya está en uso.'}), 402
+            
 
-        new_pc = Pc(name_computer=name_computer,serial_number=serial_name,date_received=date_received,cod_model_id=cod_model_id,cod_brand_id=cod_brand_id,cod_type_id=cod_type_id,cod_user_id=current_user.cod_user,cod_state_id=2)
-        db.session.add(new_pc)
-        db.session.commit()
+            new_pc = Pc(name_computer=name_computer,service_tag=serial_name,date_received=date_received,cod_model_id=cod_model_id,cod_brand_id=cod_brand_id,cod_type_id=cod_type_id,cod_user_id=current_user.cod_user,cod_state_id=2)
+            db.session.add(new_pc)
+            db.session.commit()
 
-        hora_actual = datetime.datetime.now()
-        new_log = Log(cod_pc_id=new_pc.cod_pc,cod_user_id=current_user.cod_user,date_log=hora_actual,state_log='no asignado')
+            hora_actual = datetime.datetime.now()
+            new_log = Log(cod_pc_id=new_pc.cod_pc,cod_user_id=current_user.cod_user,date_log=hora_actual,state_log='no asignado')
 
-        db.session.add(new_log)
-        db.session.commit()
-
-        return jsonify({'pc':'Creado'})
-        
+            db.session.add(new_log)
+            db.session.commit()
+            return jsonify({'pc':'Creado'})
     return jsonify({'pc':'Error ingreso'})
 
 @app.route('/datos', methods = ['GET'])
@@ -255,9 +275,10 @@ def datos():
 @app.route('/get_pc_users', methods = ['GET'])
 def get_pc_users():
 
-    resultado = db.session.query(Employes,Employes.cod_employes,Pc.serial_number,Employes.archivo,Employes.date_delivery, Employes.gps_id,Employes.lastname_user,Employes.create_date,Employes_state.state_employe)\
+    resultado = db.session.query(Employes,Employes.cod_employes,Pc.service_tag,Employes.archivo,Employes.date_delivery, Employes.gps_id,Employes.lastname_user,Employes.create_date,Employes_state.state_employe)\
                 .join(Employes_state, Employes.cod_employe_id == Employes_state.cod_employe_state)\
                 .join(Pc, Employes.cod_pc_id == Pc.cod_pc, isouter=True)\
+                .order_by(Employes.create_date.desc())\
                 .all()
 
     data = []
@@ -268,7 +289,7 @@ def get_pc_users():
                 "lastname_user": user.lastname_user,
                 "create_date" : user.create_date,
                 "gps_id" : user.gps_id,
-                "serial_number" : user.serial_number,
+                "service_tag" : user.service_tag,
                 "archivo" : user.archivo,
                 "date_delivery" : user.date_delivery
             }
@@ -279,13 +300,15 @@ def get_pc_users():
 @app.route('/get_pc', methods = ['GET','POST'])
 def get_pc():
 
-    resultado = db.session.query(Pc,Pc.cod_pc,Pc.name_computer,Pc.serial_number,Pc.date_received,Employes.lastname_user,Brand.name_brand,Model.name_model,Type.name_type,State.name_state)\
+    resultado = db.session.query(Pc,Pc.cod_pc,Pc.name_computer,Pc.service_tag,Pc.date_received,Employes.lastname_user,Brand.name_brand,Model.name_model,Type.name_type,State.name_state)\
                 .join(Brand, Pc.cod_brand_id == Brand.cod_brand)\
                 .join(Model, Pc.cod_model_id == Model.cod_model)\
                 .join(Type, Pc.cod_type_id == Type.cod_type)\
                 .join(State, Pc.cod_state_id == State.cod_state)\
                 .join(Employes, Pc.cod_pc == Employes.cod_pc_id, isouter=True)\
+                .order_by((Pc.cod_state_id == 2).desc())\
                 .all()
+
 
     data = []
 
@@ -293,7 +316,7 @@ def get_pc():
         data.append({
             'cod_pc': computer.cod_pc,
             'name_computer': computer.name_computer,
-            'serial_number': computer.serial_number,
+            'service_tag': computer.service_tag,
             'name_state': computer.name_state,
             'date_received': computer.date_received,
             'name_model': computer.name_model,
@@ -315,17 +338,24 @@ def listado():
 @app.route('/get_noasignado',  methods = ['GET'])
 def get_noasignado():
 
-    resultado = db.session.query(Pc, Pc.serial_number,State.cod_state)\
+    resultado = db.session.query(Pc, Pc.service_tag,State.cod_state)\
                 .join(State, Pc.cod_state_id == State.cod_state)\
                 .filter(State.cod_state == 2)\
                 .all()
 
-    data = []
+    states = State.query.all()
+
+    states_json = [state.obtener() for state in states]
+
+    data = ''
     for d in resultado:
-        data.append({
-            'state' : d.cod_state,
-            'serial' : d.serial_number
-        })
+        data =  {   
+                    'dato':[{
+                    'state' : d.cod_state,
+                    'service_tag' : d.service_tag   
+                    }],
+                    'state':states_json
+                }
         
     return jsonify(data)
 

@@ -1,0 +1,11 @@
+select 
+pc_users.rut_user,pc_users.lastname_user,state.name_state
+from state_pc 
+
+LEFT JOIN pc_users ON 
+state_pc.cod_pusers_id = pc_users.cod_pusers  
+
+INNER JOIN state ON 
+state_pc.cod_state_id = state.cod_state
+
+WHERE cod_pusers_id IS NOT NULL GROUP by cod_pusers_id DESC;
