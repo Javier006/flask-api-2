@@ -102,7 +102,7 @@ class Log(db.Model):
     cod_user_id = db.Column(db.Integer, db.ForeignKey('users.cod_user'))
     date_log = db.Column(db.DateTime)
     state_log = db.Column(db.String(12))
-
+    archivo_log = db.Column(db.String(200))
 
 
     

@@ -146,10 +146,31 @@ def edit_employe():
          
         data_employes = Employes.query.filter_by(gps_id=gps).first()
 
-        if archivo and data_pc and data_employes:
+        if archivo:
+            # tomar archivo y poner otro nombre
             filename = secure_filename(archivo.filename)
             unique_filename = str(uuid.uuid4())+'_'+filename
             archivo.save(os.path.join(app.config['UPLOAD_FOLDER'],unique_filename))
+
+            if data_employes.cod_pc_id:
+                #registrar LOG
+                
+
+                #quitar pc a empleado // 2 = no asignado
+                quitar_pc = Pc.query.filter_by(cod_pc=data_employes.cod_pc_id).first()
+                quitar_pc.cod_state_id = 2
+                db.session.commit()
+                #editar estado de pc. 1 = asignado
+                data_pc.cod_state_id = 1
+                db.session.commit()
+                #otro pc a empleado
+                data_employes.cod_pc_id = data_pc.cod_pc
+                db.session.commit()
+                #editar fecha de entrega
+                data_employes.date_delivery = date_delivery
+                db.session.commit()
+                return jsonify({"mensaje":"computador reasignado"})
+
             #editar estado de pc. 1 = asignado
             data_pc.cod_state_id = 1
             db.session.commit()
