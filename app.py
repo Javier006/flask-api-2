@@ -86,22 +86,6 @@ def check_auth():
     }
     return jsonify({'authenticated': True, 'user_profile': user_profile_details})
 
-#carga pdf
-@app.route('/upload_pdf', methods=['POST'])
-def uploader():
-    if request.method == 'POST':
-        pdf = request.files['archivo']
-        if pdf:
-            filename = secure_filename(pdf.filename)
-            unique_filename = str(uuid.uuid4()) +'_'+ filename
-            pdf.save(os.path.join(app.config['UPLOAD_FOLDER'], f'_id_{unique_filename}'))
-            return jsonify({'message': 'Archivo guardado exitosamente'})
-        else:
-            return jsonify({'error': 'No se ha enviado un archivo válido'}), 400
-    else:
-        return jsonify({'error': 'No se encontró el archivo en la solicitud'}), 400
-
-
 @app.route('/add_employes', methods= ['POST'])
 @jwt_required()
 def add_user_pc():
@@ -137,18 +121,15 @@ def edit_employe():
         service_tag = request.form['service_tag']
         archivo = request.files['pdf_file']
         date_delivery = request.form['datedelivery']
+        act_estado = request.form['estado']
 
         current_user_id = get_jwt_identity()
         current_user = Users.query.get(current_user_id)
 
-        #print("gps "+gps)
-        #print("serial number "+service_tag)
-        #print(archivo)
-        #print("date_delivery "+date_delivery)
-
         data_pc = Pc.query.filter_by(service_tag=service_tag).first()
-         
         data_employes = Employes.query.filter_by(gps_id=gps).first()
+        atc_state_name = State.query.filter_by(cod_state=act_estado).first()
+
 
         if archivo:
             # tomar archivo y poner otro nombre
@@ -160,13 +141,13 @@ def edit_employe():
 
                 
                 #Registrar LOG - quitar pc
-                new_log_quitar = Log(cod_pc_id=data_employes.cod_pc_id,cod_employe_id=data_employes.cod_employes,cod_user_id=current_user.cod_user,date_log=date_delivery,state_log='remover notebook',archivo_log=data_employes.archivo)
+                new_log_quitar = Log(cod_pc_id=data_employes.cod_pc_id,cod_employe_id=data_employes.cod_employes,cod_user_id=current_user.cod_user,date_log=date_delivery,state_log=atc_state_name.name_state,archivo_log=data_employes.archivo)
                 db.session.add(new_log_quitar)
                 db.session.commit()
 
                 quitar_pc = Pc.query.filter_by(cod_pc=data_employes.cod_pc_id).first()
                 #quitar pc a empleado // 2 = no asignado
-                quitar_pc.cod_state_id = 2
+                quitar_pc.cod_state_id = act_estado
                 db.session.commit()
                 #editar estado de pc. 1 = asignado
                 data_pc.cod_state_id = 1
@@ -251,6 +232,84 @@ def create():
             db.session.commit()
             return jsonify({'pc':'Creado'})
     return jsonify({'pc':'Error ingreso'})
+
+@app.route('/add_brand', methods = ['POST'])
+def add_brand():
+
+    if request.method == 'POST':
+        marca = request.form['marca']
+        if marca != 'undefined':
+            new_marca = Brand(name_brand = marca)
+            db.session.add(new_marca)
+            db.session.commit()
+            return jsonify({"mensaje":"marca añadida"})
+        return jsonify({"mensaje":"debe ingresar nombre de marca"}),401
+    return jsonify({"mensaje":"error al añadir marca"})
+
+@app.route('/delete_brand', methods = ['POST'])
+def delete_brand():
+    if request.method== 'POST':
+        cod = request.form['cod_brand']
+        existe_brand = Brand.query.filter_by(cod_brand=cod).first()
+        if cod != 0:
+            if existe_brand:   
+                db.session.delete(existe_brand)
+                db.session.commit()
+                return jsonify({"mensaje":"marca eliminada"})
+        return jsonify({"mensaje":"Debe seleccionar una marca para eliminar"}), 401
+    return  jsonify({"mensaje":"error al eliminar"})
+
+@app.route('/add_model', methods = ['POST'])
+def add_modelo():
+
+    if request.method == 'POST':
+        modelo = request.form['modelo']
+        if modelo != 'undefined':
+            new_modelo = Model(name_model = modelo)
+            db.session.add(new_modelo)
+            db.session.commit()
+            return jsonify({"mensaje":"modelo añadida"})
+        return jsonify({"mensaje":"debe ingresar nombre de modelo"}),401
+    return jsonify({"mensaje":"error al añadir modelo"})
+
+@app.route('/delete_model', methods = ['POST'])
+def delete_modelo():
+    if request.method== 'POST':
+        cod = request.form['cod_model']
+        existe_modelo = Model.query.filter_by(cod_model=cod).first()
+        if cod != 0:
+            if existe_modelo:   
+                db.session.delete(existe_modelo)
+                db.session.commit()
+                return jsonify({"mensaje":"modelo eliminada"})
+        return jsonify({"mensaje":"Debe seleccionar una modelo para eliminar"}), 401
+    return  jsonify({"mensaje":"error al eliminar"})
+
+@app.route('/add_type', methods = ['POST'])
+def add_tipo():
+
+    if request.method == 'POST':
+        tipo = request.form['tipo']
+        if tipo != 'undefined':
+            new_type = Type(name_type = tipo)
+            db.session.add(new_type)
+            db.session.commit()
+            return jsonify({"mensaje":"tipo añadida"})
+        return jsonify({"mensaje":"debe ingresar nombre de tipo"}),401
+    return jsonify({"mensaje":"error al añadir tipo"})
+
+@app.route('/delete_type', methods = ['POST'])
+def delete_tipo():
+    if request.method== 'POST':
+        cod = request.form['cod_type']
+        existe_tipo = Type.query.filter_by(cod_type=cod).first()
+        if cod != 0:
+            if existe_tipo:   
+                db.session.delete(existe_tipo)
+                db.session.commit()
+                return jsonify({"mensaje":"tipo eliminada"})
+        return jsonify({"mensaje":"Debe seleccionar un tipo para eliminar"}), 401
+    return  jsonify({"mensaje":"error al eliminar"})
 
 @app.route('/datos', methods = ['GET'])
 def datos():
@@ -345,16 +404,13 @@ def get_noasignado():
 
     states = State.query.all()
 
-    states_json = [state.obtener() for state in states]
+    #states_json = [state.obtener() for state in states]
 
     data = ''
     for d in resultado:
         data =  {   
-                    'dato':[{
                     'state' : d.cod_state,
                     'service_tag' : d.service_tag   
-                    }],
-                    'state':states_json
                 }
         
     return jsonify(data)
@@ -388,6 +444,16 @@ def addu():
     db.session.commit()
 
     return jsonify({'datos':'Cargados'})
+
+
+@app.route('/ps')
+def ps():
+
+    name_estado = State.query.filter_by(cod_state='1').first()
+
+    print(name_estado.name_state)
+
+    return jsonify({"mesaje":"si"})
 
 with app.app_context():
     db.create_all()
