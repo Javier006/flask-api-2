@@ -94,21 +94,25 @@ def add_user_pc():
         lastname_user = request.form['lastname_user']
         create_date = request.form['create_date']
         gps = request.form['rut_user']
-
+        
         current_user_id = get_jwt_identity()
         current_user = Users.query.get(current_user_id)
         
         existe_rut = Employes.query.filter_by(gps_id=gps).first()
         if  existe_rut:
-            return jsonify({"estado":"El GPS id ya esta en uso."}),400
-        #agregar empleado
-        new_user_pc = Employes(lastname_user=lastname_user, create_date=create_date, gps_id=gps,cod_employe_id=1)
-        db.session.add(new_user_pc)
-        db.session.commit()
-        #registrar Log
-        
+            return jsonify({"estado":"El GPS id ya esta en uso."}), 400
+    
+        if gps:
+            #agregar empleado
+            new_user_pc = Employes(lastname_user=lastname_user, create_date=create_date, gps_id=gps,cod_employe_id=1)
+            db.session.add(new_user_pc)
+            db.session.commit()
+            #registrar Log
+            return jsonify({"mensaje":"usuario creado"}), 200
+        else:
+            return jsonify({"mensaje":"gps faltante"}, 401)
 
-        return jsonify({"estado":"usuario creado"})
+       
     return jsonify({"estado":"Error al agregar"})
 
 @app.route('/edit_employes' , methods=['POST'])
@@ -128,45 +132,12 @@ def edit_employe():
 
         data_pc = Pc.query.filter_by(service_tag=service_tag).first()
         data_employes = Employes.query.filter_by(gps_id=gps).first()
-        atc_state_name = State.query.filter_by(cod_state=act_estado).first()
-
 
         if archivo:
             # tomar archivo y poner otro nombre
             filename = secure_filename(archivo.filename)
             unique_filename = str(uuid.uuid4())+'_'+filename
             archivo.save(os.path.join(app.config['UPLOAD_FOLDER'],unique_filename))
-
-            if data_employes.cod_pc_id:
-
-                
-                #Registrar LOG - quitar pc
-                new_log_quitar = Log(cod_pc_id=data_employes.cod_pc_id,cod_employe_id=data_employes.cod_employes,cod_user_id=current_user.cod_user,date_log=date_delivery,state_log=atc_state_name.name_state,archivo_log=data_employes.archivo)
-                db.session.add(new_log_quitar)
-                db.session.commit()
-
-                quitar_pc = Pc.query.filter_by(cod_pc=data_employes.cod_pc_id).first()
-                #quitar pc a empleado // 2 = no asignado
-                quitar_pc.cod_state_id = act_estado
-                db.session.commit()
-                #editar estado de pc. 1 = asignado
-                data_pc.cod_state_id = 1
-                db.session.commit()
-                #otro pc a empleado
-                data_employes.cod_pc_id = data_pc.cod_pc
-                db.session.commit()
-                #editar fecha de entrega
-                data_employes.date_delivery = date_delivery
-                db.session.commit()
-                #editar a nuevo archivo
-                data_employes.archivo = unique_filename
-                db.session.commit()
-                #Registrar LOG - asignar pc nuevo pc
-                new_log_asignar = Log(cod_pc_id=data_pc.cod_pc, cod_employe_id=data_employes.cod_employes, cod_user_id=current_user.cod_user, date_log=date_delivery,state_log='asignado',archivo_log=unique_filename)
-                db.session.add(new_log_asignar)
-                db.session.commit()
-
-                return jsonify({"mensaje":"computador reasignado"})
                 
             #editar estado de pc. 1 = asignado
             data_pc.cod_state_id = 1
@@ -185,12 +156,87 @@ def edit_employe():
             new_log_asignar = Log(cod_pc_id=data_pc.cod_pc, cod_employe_id=data_employes.cod_employes, cod_user_id=current_user.cod_user, data_log=date_delivery,state_log='asignado',archivo_log=unique_filename)
             db.session.add(new_log_asignar)
             db.session.commit()
-
             return jsonify({'message': 'Editado exitosamente'})
+        else:
+            ##unique_filename = None
+            #editar estado de pc. 1 = asignado
+            data_pc.cod_state_id = 1
+            db.session.commit()
+            #asignar pc a empleado
+            data_employes.cod_pc_id = data_pc.cod_pc    
+            db.session.commit()
+            #añadir nombre de archivo 
+            ##data_employes.archivo = unique_filename
+            ##db.session.commit()
+            #añadir fecha de entrega
+            data_employes.date_delivery = date_delivery
+            db.session.commit()
 
-        return jsonify({"estado":"error al editar"})
-
+            #Registrar LOG - asignar pc
+            new_log_asignar = Log(cod_pc_id=data_pc.cod_pc, cod_employe_id=data_employes.cod_employes, cod_user_id=current_user.cod_user, data_log=date_delivery,state_log='asignado')
+            db.session.add(new_log_asignar)
+            db.session.commit()
+            return jsonify({"mensaje":"asigando sin pdf"})
     return jsonify({"estado":"error al editar"})
+
+@app.route('/quitar_pc' , methods= ['POST'])
+@jwt_required()
+def quitar_pc():
+    if request.method == 'POST':
+        st = request.form['service_tag']
+        state_pc = request.form['state']
+
+        st_existe = Pc.query.filter_by(service_tag=st).first()
+        
+        if st_existe:
+            st_existe_e = Employes.query.filter_by(cod_pc_id=st_existe.cod_pc).first()
+            if st_existe_e:
+                # Cambiar estado a pc
+                st_existe.cod_state_id = state_pc 
+                db.session.commit()
+
+                # quitar pc a empleado
+                st_existe_e.cod_pc_id = None
+                db.session.commit()
+        
+            return({"mensaje":"computado quitado"})
+            
+        return({"mensaje":"error al quitar pc"})
+
+    return({"mensaje":"error al quitar pc"})
+
+@app.route('/reasignar_pc', methods = ['POST'])
+def reasigar():
+    if request.method == 'POST':
+
+        st = request.form['service_tag']
+        state = request.form['state']
+        new_st = request.form['new_st']
+
+        existe_st = Pc.query.filter_by(service_tag=st).first()
+        
+        existe_new_st = Pc.query.filter_by(service_tag=new_st).first()
+
+        if existe_st and existe_new_st:
+            
+            buscar_id_employe = Employes.query.filter_by(cod_pc_id = existe_st.cod_pc).first()
+
+            if buscar_id_employe:
+                # Cambiar estado a pc actual
+                existe_st.cod_state_id = state
+                db.session.commit()
+
+                # Cambiar estado a pc nuevo
+                existe_new_st.cod_state_id = 1
+                db.session.commit()
+
+                # Asignar pc nuevo
+                buscar_id_employe.cod_pc_id = existe_new_st.cod_pc
+                db.session.commit()
+
+                return jsonify({"mensaje":"computador reasignado"})
+    return jsonify({"mensaje":"error al reasignar"})
+
 
 @app.route('/uploads/<name>')
 def download_file(name):
@@ -318,18 +364,34 @@ def datos():
     types = Type.query.all()
     brands = Brand.query.all()
     profiles =  Profiles.query.all()
+    states = State.query.all()
     
     models_json = [model.obtener() for model in models]
     types_json = [tipo.obtener() for tipo in types]
     brand_json = [brand.obtener() for brand in brands]
     profiles_json = [profile.obtener() for profile in profiles]
+    states_json = [state.obtener() for state in states]
     datos = {
         'model':models_json,
         'type':types_json,
         'brand': brand_json,
-        'profile': profiles_json
+        'profile': profiles_json,
+        'state': states_json
     }
     return jsonify(datos)    
+
+@app.route('/estado', methods = ['GET'])
+def estado():
+
+    states = State.query.all()
+
+    states_json = [state.obtener() for state in states]
+
+    datos = {
+        'state': states_json 
+    }
+
+    return jsonify(datos)
 
 @app.route('/get_pc_users', methods = ['GET'])
 def get_pc_users():
@@ -337,6 +399,7 @@ def get_pc_users():
     resultado = db.session.query(Employes,Employes.cod_employes,Pc.service_tag,Employes.archivo,Employes.date_delivery, Employes.gps_id,Employes.lastname_user,Employes.create_date,Employes_state.state_employe)\
                 .join(Employes_state, Employes.cod_employe_id == Employes_state.cod_employe_state)\
                 .join(Pc, Employes.cod_pc_id == Pc.cod_pc, isouter=True)\
+                .order_by((Pc.service_tag == None).desc())\
                 .order_by(Employes.create_date.desc())\
                 .all()
 
@@ -366,6 +429,11 @@ def get_pc():
                 .join(State, Pc.cod_state_id == State.cod_state)\
                 .join(Employes, Pc.cod_pc == Employes.cod_pc_id, isouter=True)\
                 .order_by((Pc.cod_state_id == 2).desc())\
+                .order_by((Pc.cod_state_id == 3).desc())\
+                .order_by((Pc.cod_state_id == 1).desc())\
+                .order_by((Pc.cod_state_id == 4).desc())\
+                .order_by((Pc.cod_state_id == 5).desc())\
+                .order_by(Pc.date_received.desc())\
                 .all()
 
 
@@ -401,18 +469,12 @@ def get_noasignado():
                 .join(State, Pc.cod_state_id == State.cod_state)\
                 .filter(State.cod_state == 2)\
                 .all()
-
-    states = State.query.all()
-
-    #states_json = [state.obtener() for state in states]
-
-    data = ''
+    data = []
     for d in resultado:
-        data =  {   
+        data.append({ 
                     'state' : d.cod_state,
                     'service_tag' : d.service_tag   
-                }
-        
+                    })
     return jsonify(data)
 
 
