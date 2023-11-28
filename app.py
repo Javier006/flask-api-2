@@ -1,6 +1,7 @@
 from flask import Flask, jsonify, request, make_response, send_from_directory
 from flask_cors import CORS
 import os, uuid, datetime
+from datetime import timedelta
 from flask_bcrypt import Bcrypt
 from flask_migrate import Migrate
 from werkzeug.utils import secure_filename
@@ -17,6 +18,7 @@ app.config['UPLOAD_FOLDER'] = './pdf_afn'
 
 # Configuración de JWT
 app.config['JWT_SECRET_KEY'] = '9123'
+app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(hours=4)
 jwt = JWTManager(app)
 
 bcrypt = Bcrypt(app)
@@ -124,7 +126,7 @@ def edit_employe():
         gps = request.form['gps_id']
         service_tag = request.form['service_tag']
         archivo = request.files.get('pdf_file')
-        date_delivery = request.form['datedelivery']
+        date_delivery = request.form['date']
 
         current_user_id = get_jwt_identity()
         current_user = Users.query.get(current_user_id)
@@ -152,9 +154,7 @@ def edit_employe():
             db.session.commit()
 
             #Registrar LOG - asignar pc
-            new_log_asignar = Log(cod_pc_id=data_pc.cod_pc, cod_employe_id=data_employes.cod_employes, cod_user_id=current_user.cod_user, data_log=date_delivery,state_log='asignado',archivo_log=unique_filename)
-            db.session.add(new_log_asignar)
-            db.session.commit()
+
             return jsonify({'message': 'asignacion exitosamente'})
         else:
             ##unique_filename = None
@@ -197,7 +197,15 @@ def quitar_pc():
                 # quitar pc a empleado
                 st_existe_e.cod_pc_id = None
                 db.session.commit()
-        
+
+                # limpiar pdf 
+                st_existe_e.arhivo = None
+                db.session.commit()
+
+                #limpiar fecha
+                st_existe_e.date_delivery = None
+                db.session.commit()
+
             return({"mensaje":"computado quitado"})
             
         return({"mensaje":"error al quitar pc"})
@@ -211,30 +219,87 @@ def reasigar():
         st = request.form['service_tag']
         state = request.form['state']
         new_st = request.form['new_st']
+        archivo = request.files.get('pdf_file')
+        date_delivery = request.form['date']
+        view = request.form['view']
 
         existe_st = Pc.query.filter_by(service_tag=st).first()
         
         existe_new_st = Pc.query.filter_by(service_tag=new_st).first()
 
-        if existe_st and existe_new_st:
-            
-            buscar_id_employe = Employes.query.filter_by(cod_pc_id = existe_st.cod_pc).first()
+        buscar_id_employe = Employes.query.filter_by(cod_pc_id = existe_st.cod_pc).first()
 
-            if buscar_id_employe:
-                # Cambiar estado a pc actual
-                existe_st.cod_state_id = state
+        #Reasignar
+        if view == '1':
+            if existe_st and existe_new_st:
+                if buscar_id_employe:
+                    # Cambiar estado a pc actual
+                    existe_st.cod_state_id = state
+                    db.session.commit()
+                    # Cambiar estado a pc nuevo
+                    existe_new_st.cod_state_id = 1
+                    db.session.commit()
+                    # Asignar pc nuevo
+                    buscar_id_employe.cod_pc_id = existe_new_st.cod_pc
+                    db.session.commit()
+                    # Cambiar fecha
+                    buscar_id_employe.date_delivery = date_delivery
+
+                    if archivo:
+                        #asignar archivo
+                        filename = secure_filename(archivo.filename)
+                        unique_filename = str(uuid.uuid4())+'_'+filename
+                        archivo.save(os.path.join(app.config['UPLOAD_FOLDER'],unique_filename))
+
+                        buscar_id_employe.archivo = unique_filename
+                        db.session.commit()
+                    else:
+                        # archivo vacio
+                        buscar_id_employe.archivo = None
+                        db.session.commit()
+                        return jsonify({"mensaje":"computador reasignado"}),200
+        elif view == '2':
+            #quitar pc
+
+            # Cambiar estado a pc
+            existe_st.cod_state_id = state 
+            db.session.commit()
+
+            # quitar pc a empleado
+            buscar_id_employe.cod_pc_id = None
+            db.session.commit()
+
+            # limpiar pdf 
+            buscar_id_employe.arhivo = None
+            db.session.commit()
+
+            #limpiar fecha
+            buscar_id_employe.date_delivery = None
+            db.session.commit()
+
+            return jsonify({"mensaje":"computador quitado"}),201
+        
+        elif view == '3':
+            #cambiar o editar archivo
+
+            if archivo and buscar_id_employe:
+                #asignar archivo
+                filename = secure_filename(archivo.filename)
+                unique_filename = str(uuid.uuid4())+'_'+filename
+                archivo.save(os.path.join(app.config['UPLOAD_FOLDER'],unique_filename))
+
+                buscar_id_employe.archivo = unique_filename
+                db.session.commit()
+                return jsonify({"mensaje":"archivo actualizado"})
+            else:
+                # archivo vacio
+                buscar_id_employe.archivo = None
                 db.session.commit()
 
-                # Cambiar estado a pc nuevo
-                existe_new_st.cod_state_id = 1
-                db.session.commit()
-
-                # Asignar pc nuevo
-                buscar_id_employe.cod_pc_id = existe_new_st.cod_pc
-                db.session.commit()
-
-                return jsonify({"mensaje":"computador reasignado"})
-    return jsonify({"mensaje":"error al reasignar"})
+                return jsonify({"mensaje":"computador reasignado"}),200
+        else:
+            return jsonify({"mensaje":"debe seleccionar una opción"}),401
+    return jsonify({"mensaje":"error al actualizar"})
 
 
 @app.route('/uploads/<name>')
@@ -277,6 +342,34 @@ def create():
             db.session.commit()
             return jsonify({'pc':'Creado'})
     return jsonify({'pc':'Error ingreso'})
+
+@app.route('/edit_pc', methods = ['POST'])
+@jwt_required()
+def edit_pc():
+
+    if request.method == 'POST':
+
+        cod = request.form['cod']
+        computer = request.form['computer']
+        st = request.form['st']
+        marca = request.form['marca']
+        tipo = request.form['tipo']
+        modelo = request.form['model']
+        estado = request.form['estado']
+
+        existe_cod = Pc.query.filter_by(cod_pc = cod).first()
+        existe_st = Pc.query.filter_by(service_tag = st).first()
+
+        if existe_cod:
+
+
+
+
+            existe_cod.name_computer = computer            
+
+            return jsonify({"mensaje":"actualizado"})
+
+    return jsonify({"mensaje":"error al editar"})
 
 @app.route('/add_brand', methods = ['POST'])
 def add_brand():
