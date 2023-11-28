@@ -93,15 +93,15 @@ def add_user_pc():
     if request.method == 'POST':
         lastname_user = request.form['lastname_user']
         create_date = request.form['create_date']
-        gps = request.form['rut_user']
+        gps = request.form['gps']
         
-        current_user_id = get_jwt_identity()
-        current_user = Users.query.get(current_user_id)
-        
-        existe_rut = Employes.query.filter_by(gps_id=gps).first()
-        if  existe_rut:
+        existe_gps = Employes.query.filter_by(gps_id=gps).first()
+        if  existe_gps:
             return jsonify({"estado":"El GPS id ya esta en uso."}), 400
-    
+        
+        if gps and  lastname_user == 'undefined':
+            return jsonify({'mensaje':'Debe ingresar los los campos de GPS y Nombre completo'}),402
+
         if gps:
             #agregar empleado
             new_user_pc = Employes(lastname_user=lastname_user, create_date=create_date, gps_id=gps,cod_employe_id=1)
@@ -123,9 +123,8 @@ def edit_employe():
 
         gps = request.form['gps_id']
         service_tag = request.form['service_tag']
-        archivo = request.files['pdf_file']
+        archivo = request.files.get('pdf_file')
         date_delivery = request.form['datedelivery']
-        act_estado = request.form['estado']
 
         current_user_id = get_jwt_identity()
         current_user = Users.query.get(current_user_id)
@@ -156,7 +155,7 @@ def edit_employe():
             new_log_asignar = Log(cod_pc_id=data_pc.cod_pc, cod_employe_id=data_employes.cod_employes, cod_user_id=current_user.cod_user, data_log=date_delivery,state_log='asignado',archivo_log=unique_filename)
             db.session.add(new_log_asignar)
             db.session.commit()
-            return jsonify({'message': 'Editado exitosamente'})
+            return jsonify({'message': 'asignacion exitosamente'})
         else:
             ##unique_filename = None
             #editar estado de pc. 1 = asignado
@@ -173,9 +172,9 @@ def edit_employe():
             db.session.commit()
 
             #Registrar LOG - asignar pc
-            new_log_asignar = Log(cod_pc_id=data_pc.cod_pc, cod_employe_id=data_employes.cod_employes, cod_user_id=current_user.cod_user, data_log=date_delivery,state_log='asignado')
-            db.session.add(new_log_asignar)
-            db.session.commit()
+            #new_log_asignar = Log(cod_pc_id=data_pc.cod_pc, cod_employe_id=data_employes.cod_employes, cod_user_id=current_user.cod_user, data_log=date_delivery,state_log='asignado')
+            #db.session.add(new_log_asignar)
+            #db.session.commit()
             return jsonify({"mensaje":"asigando sin pdf"})
     return jsonify({"estado":"error al editar"})
 
