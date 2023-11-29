@@ -1,18 +1,21 @@
 from flask import Flask, jsonify, request, make_response, send_from_directory
 from flask_cors import CORS
-import os, uuid, datetime
-from datetime import timedelta
+import os, uuid
+from datetime import timedelta, datetime
 from flask_bcrypt import Bcrypt
 from flask_migrate import Migrate
+from sqlalchemy import case
 from werkzeug.utils import secure_filename
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 from models import db, Users, Profiles, Users_profiles, Type, Model, Brand, State, Pc, Employes, Employes_state, Log
 
 app = Flask(__name__)
 
-# Configuración base de datos
-app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql://root@localhost/afn'
+# Configuración base de datos myql
+#app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql://root@localhost/afn'
 
+app.config['SQLALCHEMY_DATABASE_URI'] = 'mssql+pyodbc://afn:123@(localdb)\dbprueba/sistema_afn?driver=ODBC+Driver+17+for+SQL+Server'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 #folder pdf
 app.config['UPLOAD_FOLDER'] = './pdf_afn'
 
@@ -69,7 +72,7 @@ def register():
         add_profile = Users_profiles(cod_user_id=new_user.cod_user,cod_profile_id=profile)
         db.session.add(add_profile)
         db.session.commit()
-
+        db.session.close() 
         return jsonify({'message': 'Usuario registrado exitosamente'}), 201
 
     return jsonify({'message': 'Registro fallido'}), 400
@@ -96,8 +99,14 @@ def add_user_pc():
         lastname_user = request.form['lastname_user']
         create_date = request.form['create_date']
         gps = request.form['gps']
+
+        ##cambiar fecha a sqlserver...
+        new_create_date = datetime.strptime(create_date,'%Y-%m-%dT%H:%M')
+
+        sql_fecha = new_create_date.strftime('%Y-%m-%d %H:%M:%S')
         
         existe_gps = Employes.query.filter_by(gps_id=gps).first()
+
         if  existe_gps:
             return jsonify({"estado":"El GPS id ya esta en uso."}), 400
         
@@ -106,10 +115,12 @@ def add_user_pc():
 
         if gps:
             #agregar empleado
-            new_user_pc = Employes(lastname_user=lastname_user, create_date=create_date, gps_id=gps,cod_employe_id=1)
+            new_user_pc = Employes(lastname_user=lastname_user, create_date=sql_fecha, gps_id=gps,cod_employe_id=1)
             db.session.add(new_user_pc)
             db.session.commit()
+            
             #registrar Log
+            db.session.close() 
             return jsonify({"mensaje":"usuario creado"}), 200
         else:
             return jsonify({"mensaje":"gps faltante"}, 401)
@@ -134,6 +145,11 @@ def edit_employe():
         data_pc = Pc.query.filter_by(service_tag=service_tag).first()
         data_employes = Employes.query.filter_by(gps_id=gps).first()
 
+        #cambiar fecha a sqlserver...
+        new_date = datetime.strptime(date_delivery,'%Y-%m-%dT%H:%M')
+
+        sql_fecha = new_date.strftime('%Y-%m-%d %H:%M:%S')
+
         if archivo:
             # tomar archivo y poner otro nombre
             filename = secure_filename(archivo.filename)
@@ -150,7 +166,7 @@ def edit_employe():
             data_employes.archivo = unique_filename
             db.session.commit()
             #añadir fecha de entrega
-            data_employes.date_delivery = date_delivery
+            data_employes.date_delivery = sql_fecha
             db.session.commit()
 
             #Registrar LOG - asignar pc
@@ -168,7 +184,7 @@ def edit_employe():
             ##data_employes.archivo = unique_filename
             ##db.session.commit()
             #añadir fecha de entrega
-            data_employes.date_delivery = date_delivery
+            data_employes.date_delivery = sql_fecha
             db.session.commit()
 
             #Registrar LOG - asignar pc
@@ -177,40 +193,6 @@ def edit_employe():
             #db.session.commit()
             return jsonify({"mensaje":"asigando sin pdf"})
     return jsonify({"estado":"error al editar"})
-
-@app.route('/quitar_pc' , methods= ['POST'])
-@jwt_required()
-def quitar_pc():
-    if request.method == 'POST':
-        st = request.form['service_tag']
-        state_pc = request.form['state']
-
-        st_existe = Pc.query.filter_by(service_tag=st).first()
-        
-        if st_existe:
-            st_existe_e = Employes.query.filter_by(cod_pc_id=st_existe.cod_pc).first()
-            if st_existe_e:
-                # Cambiar estado a pc
-                st_existe.cod_state_id = state_pc 
-                db.session.commit()
-
-                # quitar pc a empleado
-                st_existe_e.cod_pc_id = None
-                db.session.commit()
-
-                # limpiar pdf 
-                st_existe_e.arhivo = None
-                db.session.commit()
-
-                #limpiar fecha
-                st_existe_e.date_delivery = None
-                db.session.commit()
-
-            return({"mensaje":"computado quitado"})
-            
-        return({"mensaje":"error al quitar pc"})
-
-    return({"mensaje":"error al quitar pc"})
 
 @app.route('/reasignar_pc', methods = ['POST'])
 def reasigar():
@@ -229,6 +211,11 @@ def reasigar():
 
         buscar_id_employe = Employes.query.filter_by(cod_pc_id = existe_st.cod_pc).first()
 
+        ##cambiar fecha a sqlserver...
+        new_create_date = datetime.strptime(date_delivery,'%Y-%m-%dT%H:%M')
+
+        sql_fecha = new_create_date.strftime('%Y-%m-%d %H:%M:%S')
+
         #Reasignar
         if view == '1':
             if existe_st and existe_new_st:
@@ -243,7 +230,7 @@ def reasigar():
                     buscar_id_employe.cod_pc_id = existe_new_st.cod_pc
                     db.session.commit()
                     # Cambiar fecha
-                    buscar_id_employe.date_delivery = date_delivery
+                    buscar_id_employe.date_delivery = sql_fecha
 
                     if archivo:
                         #asignar archivo
@@ -257,7 +244,7 @@ def reasigar():
                         # archivo vacio
                         buscar_id_employe.archivo = None
                         db.session.commit()
-                        return jsonify({"mensaje":"computador reasignado"}),200
+                    return jsonify({"mensaje":"computador reasignado"}),200
         elif view == '2':
             #quitar pc
 
@@ -276,7 +263,7 @@ def reasigar():
             #limpiar fecha
             buscar_id_employe.date_delivery = None
             db.session.commit()
-
+            db.session.close() 
             return jsonify({"mensaje":"computador quitado"}),201
         
         elif view == '3':
@@ -296,11 +283,10 @@ def reasigar():
                 buscar_id_employe.archivo = None
                 db.session.commit()
 
-                return jsonify({"mensaje":"computador reasignado"}),200
+                return jsonify({"mensaje":"computador reasignado"}),203
         else:
             return jsonify({"mensaje":"debe seleccionar una opción"}),401
     return jsonify({"mensaje":"error al actualizar"})
-
 
 @app.route('/uploads/<name>')
 def download_file(name):
@@ -316,6 +302,13 @@ def create():
         cod_model_id = request.form['namemodel']
         cod_brand_id = request.form['namebrand']
         cod_type_id = request.form['nametype']
+
+        ##cambiar fecha a sqlserver...
+        new_date = datetime.strptime(date_received,'%Y-%m-%dT%H:%M')
+
+        sql_fecha = new_date.strftime('%Y-%m-%d %H:%M:%S')
+    
+
         #usuario login
         if name_computer and serial_name and date_received and cod_brand_id and cod_model_id and cod_type_id:
             current_user_id = get_jwt_identity()
@@ -331,15 +324,15 @@ def create():
                 return  jsonify({'message': 'El numero de serial ya está en uso.'}), 402
             
 
-            new_pc = Pc(name_computer=name_computer,service_tag=serial_name,date_received=date_received,cod_model_id=cod_model_id,cod_brand_id=cod_brand_id,cod_type_id=cod_type_id,cod_user_id=current_user.cod_user,cod_state_id=2)
+            new_pc = Pc(name_computer=name_computer,service_tag=serial_name,date_received=sql_fecha,cod_model_id=cod_model_id,cod_brand_id=cod_brand_id,cod_type_id=cod_type_id,cod_user_id=current_user.cod_user,cod_state_id=2)
             db.session.add(new_pc)
             db.session.commit()
 
-            hora_actual = datetime.datetime.now()
-            new_log = Log(cod_pc_id=new_pc.cod_pc,cod_user_id=current_user.cod_user,date_log=hora_actual,state_log='no asignado')
+            new_log = Log(cod_pc_id=new_pc.cod_pc,cod_user_id=current_user.cod_user,date_log=sql_fecha,state_log='no asignado')
 
             db.session.add(new_log)
             db.session.commit()
+            db.session.close() 
             return jsonify({'pc':'Creado'})
     return jsonify({'pc':'Error ingreso'})
 
@@ -348,7 +341,6 @@ def create():
 def edit_pc():
 
     if request.method == 'POST':
-
         cod = request.form['cod']
         computer = request.form['computer']
         st = request.form['st']
@@ -357,15 +349,47 @@ def edit_pc():
         modelo = request.form['model']
         estado = request.form['estado']
 
-        existe_cod = Pc.query.filter_by(cod_pc = cod).first()
-        existe_st = Pc.query.filter_by(service_tag = st).first()
+        existe_cod = Pc.query.filter_by(cod_pc=cod).first()
+
+        existe_st = Pc.query.filter_by(service_tag=st).first()
+
+        existe_namepc = Pc.query.filter_by(name_computer=computer).first()
 
         if existe_cod:
+            
+            if existe_cod.service_tag == st:
+                existe_cod.service_tag = st
+                db.session.commit()
 
+            elif existe_cod.service_tag != st and existe_st:
+                return jsonify({"mensaje":"ST ya esta en uso"}),401
+            else:
+                existe_cod.service_tag = st
+                db.session.commit()
 
+            if existe_cod.name_computer == computer:
+                existe_cod.name_computer = computer
+                db.session.commit()
 
+            elif existe_cod.name_computer != computer and existe_namepc:
+                return jsonify({"mensaje":"NC ya esta en uso"}),402
+            else:
+                existe_cod.name_computer = computer
+                db.session.commit()
 
-            existe_cod.name_computer = computer            
+            
+            existe_cod.cod_brand_id = marca
+            db.session.commit()
+   
+            existe_cod.cod_type_id = tipo
+            db.session.commit()
+
+            existe_cod.cod_model_id = modelo
+            db.session.commit()
+
+            existe_cod.cod_state_id = estado
+            db.session.commit()
+            db.session.close()   
 
             return jsonify({"mensaje":"actualizado"})
 
@@ -380,6 +404,7 @@ def add_brand():
             new_marca = Brand(name_brand = marca)
             db.session.add(new_marca)
             db.session.commit()
+            db.session.close() 
             return jsonify({"mensaje":"marca añadida"})
         return jsonify({"mensaje":"debe ingresar nombre de marca"}),401
     return jsonify({"mensaje":"error al añadir marca"})
@@ -393,6 +418,7 @@ def delete_brand():
             if existe_brand:   
                 db.session.delete(existe_brand)
                 db.session.commit()
+                db.session.close() 
                 return jsonify({"mensaje":"marca eliminada"})
         return jsonify({"mensaje":"Debe seleccionar una marca para eliminar"}), 401
     return  jsonify({"mensaje":"error al eliminar"})
@@ -406,6 +432,7 @@ def add_modelo():
             new_modelo = Model(name_model = modelo)
             db.session.add(new_modelo)
             db.session.commit()
+            db.session.close() 
             return jsonify({"mensaje":"modelo añadida"})
         return jsonify({"mensaje":"debe ingresar nombre de modelo"}),401
     return jsonify({"mensaje":"error al añadir modelo"})
@@ -419,6 +446,7 @@ def delete_modelo():
             if existe_modelo:   
                 db.session.delete(existe_modelo)
                 db.session.commit()
+                db.session.close() 
                 return jsonify({"mensaje":"modelo eliminada"})
         return jsonify({"mensaje":"Debe seleccionar una modelo para eliminar"}), 401
     return  jsonify({"mensaje":"error al eliminar"})
@@ -432,6 +460,7 @@ def add_tipo():
             new_type = Type(name_type = tipo)
             db.session.add(new_type)
             db.session.commit()
+            db.session.close() 
             return jsonify({"mensaje":"tipo añadida"})
         return jsonify({"mensaje":"debe ingresar nombre de tipo"}),401
     return jsonify({"mensaje":"error al añadir tipo"})
@@ -445,6 +474,7 @@ def delete_tipo():
             if existe_tipo:   
                 db.session.delete(existe_tipo)
                 db.session.commit()
+                db.session.close() 
                 return jsonify({"mensaje":"tipo eliminada"})
         return jsonify({"mensaje":"Debe seleccionar un tipo para eliminar"}), 401
     return  jsonify({"mensaje":"error al eliminar"})
@@ -491,9 +521,10 @@ def get_pc_users():
     resultado = db.session.query(Employes,Employes.cod_employes,Pc.service_tag,Employes.archivo,Employes.date_delivery, Employes.gps_id,Employes.lastname_user,Employes.create_date,Employes_state.state_employe)\
                 .join(Employes_state, Employes.cod_employe_id == Employes_state.cod_employe_state)\
                 .join(Pc, Employes.cod_pc_id == Pc.cod_pc, isouter=True)\
-                .order_by((Pc.service_tag == None).desc())\
-                .order_by(Employes.create_date.desc())\
                 .all()
+                #.order_by((Pc.service_tag == None).desc())\
+                #.order_by(Employes.create_date.desc())\
+                
 
     data = []
     for user in resultado:
@@ -520,14 +551,16 @@ def get_pc():
                 .join(Type, Pc.cod_type_id == Type.cod_type)\
                 .join(State, Pc.cod_state_id == State.cod_state)\
                 .join(Employes, Pc.cod_pc == Employes.cod_pc_id, isouter=True)\
-                .order_by((Pc.cod_state_id == 2).desc())\
-                .order_by((Pc.cod_state_id == 3).desc())\
-                .order_by((Pc.cod_state_id == 1).desc())\
-                .order_by((Pc.cod_state_id == 4).desc())\
-                .order_by((Pc.cod_state_id == 5).desc())\
+                .order_by(
+                    db.case(
+                    (Pc.cod_state_id == 2,0),
+                    (Pc.cod_state_id == 3,1),
+                    (Pc.cod_state_id == 1,2),
+                    (Pc.cod_state_id == 4,3),
+                    (Pc.cod_state_id == 3,4),
+                    else_=5))\
                 .order_by(Pc.date_received.desc())\
                 .all()
-
 
     data = []
 
@@ -573,16 +606,20 @@ def get_noasignado():
 @app.route('/datos_prueba')
 def addu():
 
-    new_type = Type(name='notebook')
+    new_type = Type(name_type='notebook')
     new_profile = Profiles(name='administrador')
     new_profile2 = Profiles(name='usuario')
-    new_brand = Brand(name='dell')
-    new_model = Model(name='modelo1')
-    new_model2 = Model(name='modelo2')
-    new_model3 = Model(name='modelo3')
+    new_brand = Brand(name_brand='dell')
+    new_model = Model(name_model='modelo1')
+    new_model2 = Model(name_model='modelo2')
+    new_model3 = Model(name_model='modelo3')
     new_state2 = State(name_state='asignado')
-    new_state3 = State(name_state='no asignado')
-    new_state4 = State(name_state='mal estado')
+    new_state3 = State(name_state='disponible')
+    new_state4 = State(name_state='reparación')
+    new_state5 = State(name_state='robado')
+    new_state6 = State(name_state='dar de baja')
+    new_user_profile = Users_profiles(cod_user_id=1,cod_profile_id=1)
+
     new_user = Users(nick_name='javier', u_password='$2b$12$9q6oTe2dQoV/YdPIfrVAZeFA4P3fZYdHfQzHmZkeatX2dJto/eiRW')
     db.session.add(new_user)
     db.session.add(new_type)
@@ -592,9 +629,12 @@ def addu():
     db.session.add(new_model)
     db.session.add(new_model2)
     db.session.add(new_model3)
+    db.session.add(new_user_profile)
     db.session.add(new_state2)
     db.session.add(new_state3)
     db.session.add(new_state4)
+    db.session.add(new_state5)
+    db.session.add(new_state6)
     db.session.commit()
 
     return jsonify({'datos':'Cargados'})
