@@ -103,13 +103,13 @@ class Employes_state(db.Model):
 class Log(db.Model):
     __tablename__= 'log'
     cod_log = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    cod_pc_id = db.Column(db.Integer, db.ForeignKey('pc.cod_pc'))
-    cod_employe_id = db.Column(db.Integer, db.ForeignKey('employes.cod_employes'))
-    cod_user_id = db.Column(db.Integer, db.ForeignKey('users.cod_user'))
-    date_log = db.Column(db.DateTime)
-    state_log = db.Column(db.String(12))
-    archivo_log = db.Column(db.String(200))
-
+    log_pc_id = db.Column(db.Integer)
+    log_pc_nc = db.Column(db.String(50))
+    log_pc_st = db.Column(db.String(50))
+    log_date = db.Column(db.DateTime)
+    log_state = db.Column(db.String(12))
+    log_archivo = db.Column(db.String(200))
+    log_cod_user_id = db.Column(db.Integer)
 
 
     

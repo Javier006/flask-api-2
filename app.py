@@ -4,7 +4,6 @@ import os, uuid
 from datetime import timedelta, datetime
 from flask_bcrypt import Bcrypt
 from flask_migrate import Migrate
-from sqlalchemy import case
 from werkzeug.utils import secure_filename
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 from models import db, Users, Profiles, Users_profiles, Type, Model, Brand, State, Pc, Employes, Employes_state, Log
@@ -87,6 +86,7 @@ def check_auth():
 
     user_profile_details = {
         'cod_user' : user_profile.cod_user_id,
+        'name_user': current_user.nick_name,
         'profile' : user_profile.cod_profile_id
     }
     return jsonify({'authenticated': True, 'user_profile': user_profile_details})
@@ -188,8 +188,7 @@ def edit_employe():
             db.session.commit()
 
             #Registrar LOG - asignar pc
-            #new_log_asignar = Log(cod_pc_id=data_pc.cod_pc, cod_employe_id=data_employes.cod_employes, cod_user_id=current_user.cod_user, data_log=date_delivery,state_log='asignado')
-            #db.session.add(new_log_asignar)
+
             #db.session.commit()
             return jsonify({"mensaje":"asigando sin pdf"})
     return jsonify({"estado":"error al editar"})
@@ -328,10 +327,7 @@ def create():
             db.session.add(new_pc)
             db.session.commit()
 
-            new_log = Log(cod_pc_id=new_pc.cod_pc,cod_user_id=current_user.cod_user,date_log=sql_fecha,state_log='no asignado')
 
-            db.session.add(new_log)
-            db.session.commit()
             db.session.close() 
             return jsonify({'pc':'Creado'})
     return jsonify({'pc':'Error ingreso'})
@@ -393,7 +389,26 @@ def edit_pc():
 
             return jsonify({"mensaje":"actualizado"})
 
-    return jsonify({"mensaje":"error al editar"})
+    if request.method == 'DELETE':
+        cod = request.form['cod']
+        existe_cod = Pc.query.filter_by(cod_pc=cod).first()
+        if existe_cod:
+            db.session.delete(existe_cod)
+            return jsonify({"mensaje":"computador eliminado"}),201
+    return jsonify({"mensaje":"error eliminar"}),403
+
+@app.route('/delete_pc/<int:cod>', methods = ['DELETE'])
+def delete_pc(cod):
+
+    if request.method == 'DELETE':
+        borrar = Pc.query.get_or_404(cod)
+
+        db.session.delete(borrar)
+        db.session.commit()
+        db.session.close()
+        
+        return jsonify({"mensaje":"eliminado"})
+    return jsonify({"mensaje":"error al eliminar"})
 
 @app.route('/add_brand', methods = ['POST'])
 def add_brand():
@@ -521,9 +536,13 @@ def get_pc_users():
     resultado = db.session.query(Employes,Employes.cod_employes,Pc.service_tag,Employes.archivo,Employes.date_delivery, Employes.gps_id,Employes.lastname_user,Employes.create_date,Employes_state.state_employe)\
                 .join(Employes_state, Employes.cod_employe_id == Employes_state.cod_employe_state)\
                 .join(Pc, Employes.cod_pc_id == Pc.cod_pc, isouter=True)\
+                .order_by(
+                    db.case(
+                        (Employes.cod_pc_id == None,0),
+                        else_=1
+                        ))\
                 .all()
-                #.order_by((Pc.service_tag == None).desc())\
-                #.order_by(Employes.create_date.desc())\
+
                 
 
     data = []
