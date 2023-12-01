@@ -1,0 +1,15 @@
+SQLSERVER
+pip install pyodbc
+
+
+
+
+sqllocaldb info
+
+sqllocaldb create "name"
+
+$ flask db stamp head
+$ flask db migrate
+$ flask db upgrade
+
+npm i bootstrap-icons

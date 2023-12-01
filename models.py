@@ -109,6 +109,8 @@ class Log(db.Model):
     log_date = db.Column(db.DateTime)
     log_state = db.Column(db.String(12))
     log_archivo = db.Column(db.String(200))
+    log_cod_employe = db.Column(db.Integer)
+    log_name_employe = db.Column(db.String(100))
     log_cod_user_id = db.Column(db.Integer)
 
 
