@@ -6,7 +6,15 @@ from flask_bcrypt import Bcrypt
 from flask_migrate import Migrate
 from werkzeug.utils import secure_filename
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
-from models import db, Users, Profiles, Users_profiles, Type, Model, Brand, State, Pc, Employes, Employes_state, Log
+from models import db, Users, Profiles, Users_profiles, Type, Model, Brand, State, Pc, Employes, Employes_state, Log, Prueba
+
+####prueba de datos
+from faker import Faker
+fake = Faker()
+
+#####
+
+
 
 app = Flask(__name__)
 
@@ -346,8 +354,11 @@ def create():
 
         sql_fecha = new_date.strftime('%Y-%m-%d %H:%M:%S')
     
+        if name_computer == 'undefined':
+            return jsonify({"mensaje":"campo nombre vacio"}),403
+        if st == 'undefined':
+            return jsonify({"mensaje":"campo st vacio"}),404
 
-        #usuario login
         if name_computer and st and date_received and cod_brand_id and cod_model_id and cod_type_id:
             current_user_id = get_jwt_identity()
             current_user = Users.query.get(current_user_id)
@@ -374,6 +385,9 @@ def create():
 
             db.session.close() 
             return jsonify({'pc':'Creado'})
+        
+
+
     return jsonify({'pc':'Error ingreso'})
 
 @app.route('/edit_pc', methods = ['POST'])
@@ -577,7 +591,7 @@ def estado():
 @app.route('/get_pc_users', methods = ['GET'])
 def get_pc_users():
 
-    resultado = db.session.query(Employes,Employes.cod_employes,Pc.service_tag,Employes.archivo,Employes.date_delivery, Employes.gps_id,Employes.lastname_user,Employes.create_date,Employes_state.state_employe)\
+    resultado = db.session.query(Employes,Employes.cod_employes,Pc.service_tag,Pc.name_computer,Employes.archivo,Employes.date_delivery, Employes.gps_id,Employes.lastname_user,Employes.create_date,Employes_state.state_employe)\
                 .join(Employes_state, Employes.cod_employe_id == Employes_state.cod_employe_state)\
                 .join(Pc, Employes.cod_pc_id == Pc.cod_pc, isouter=True)\
                 .order_by(
@@ -598,6 +612,7 @@ def get_pc_users():
                 "create_date" : user.create_date,
                 "gps_id" : user.gps_id,
                 "service_tag" : user.service_tag,
+                "name_computer" : user.name_computer,
                 "archivo" : user.archivo,
                 "date_delivery" : user.date_delivery
             }
@@ -741,6 +756,28 @@ def addu():
 
     return jsonify({'datos':'Cargados'})
 
+
+###prueba datos random
+@app.route('/prueba_datos')
+def prueba_datos():
+
+    names = [fake.unique.first_name() for i in range(500)]
+    assert len(set(names)) == len(names)
+    numberandom = [fake.unique.random_int() for i in range(500)]
+    assert len(set(numberandom)) == len(numberandom)
+
+    #for _ in range(1):
+    #    new_dato = Prueba(gps_id=numberandom,lastname_user=names,create_date=fake.date_time_this_year(),cod_employe_id=1)
+    #    db.session.add(new_dato)
+    #    db.session.commit()
+
+
+    for _ in range(30):
+        new_dato = Pc(name_computer=fake.unique.license_plate(),service_tag=fake.unique.random_int(),date_received=fake.date_time_this_year(),cod_model_id=1,cod_brand_id=1,cod_type_id=1,cod_user_id=1,cod_state_id=fake.random_int(max=5,min=1))
+        db.session.add(new_dato)
+        db.session.commit()
+         
+    return jsonify({"datos":"random"})
 
 with app.app_context():
     db.create_all()

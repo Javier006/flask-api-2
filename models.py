@@ -114,6 +114,16 @@ class Log(db.Model):
     log_cod_user_id = db.Column(db.Integer)
 
 
+class Prueba(db.Model):
+    __tablename__ = 'prueba'
+    cod_employes = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    gps_id = db.Column(db.String(12))
+    lastname_user = db.Column(db.String(100))
+    archivo = db.Column(db.String(200))
+    create_date = db.Column(db.DateTime)
+    cod_employe_id = db.Column(db.Integer, db.ForeignKey('employes_state.cod_employe_state'))
+    cod_pc_id = db.Column(db.Integer, db.ForeignKey('pc.cod_pc'))
+    date_delivery = db.Column(db.DateTime)
     
 
 
