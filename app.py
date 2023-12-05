@@ -143,6 +143,7 @@ def edit_employe():
     if request.method == 'POST':
 
         gps = request.form['gps_id']
+        lastname = request.form['lastname']
         service_tag = request.form['service_tag']
         archivo = request.files.get('pdf_file')
         date_delivery = request.form['date']
@@ -158,49 +159,66 @@ def edit_employe():
 
         sql_fecha = new_date.strftime('%Y-%m-%d %H:%M:%S')
 
-        if archivo:
-            # tomar archivo y poner otro nombre
-            filename = secure_filename(archivo.filename)
-            unique_filename = str(uuid.uuid4())+'_'+filename
-            archivo.save(os.path.join(app.config['UPLOAD_FOLDER'],unique_filename))
-                
-            #editar estado de pc. 1 = asignado
-            data_pc.cod_state_id = 1
-            db.session.commit()
-            #asignar pc a empleado
-            data_employes.cod_pc_id = data_pc.cod_pc    
-            db.session.commit()
-            #añadir nombre de archivo 
-            data_employes.archivo = unique_filename
-            db.session.commit()
-            #añadir fecha de entrega
-            data_employes.date_delivery = sql_fecha
-            db.session.commit()
-        else:
+
+        if int(service_tag) > 0:
             
-            #editar estado de pc. 1 = asignado
-            data_pc.cod_state_id = 1
-            db.session.commit()
-            #asignar pc a empleado
-            data_employes.cod_pc_id = data_pc.cod_pc    
-            db.session.commit()
-            #añadir fecha de entrega
-            data_employes.date_delivery = sql_fecha
-            db.session.commit()
+            if archivo:
+                # tomar archivo y poner otro nombre
+                filename = secure_filename(archivo.filename)
+                unique_filename = str(uuid.uuid4())+'_'+filename
+                archivo.save(os.path.join(app.config['UPLOAD_FOLDER'],unique_filename))
+                    
+                #editar estado de pc. 1 = asignado
+                data_pc.cod_state_id = 1
+                db.session.commit()
+                #asignar pc a empleado
+                data_employes.cod_pc_id = data_pc.cod_pc    
+                db.session.commit()
+                #añadir nombre de archivo 
+                data_employes.archivo = unique_filename
+                db.session.commit()
+                #añadir fecha de entrega
+                data_employes.date_delivery = sql_fecha
+                db.session.commit()
+            else:
+                
+                #editar estado de pc. 1 = asignado
+                data_pc.cod_state_id = 1
+                db.session.commit()
+                #asignar pc a empleado
+                data_employes.cod_pc_id = data_pc.cod_pc    
+                db.session.commit()
+                #añadir fecha de entrega
+                data_employes.date_delivery = sql_fecha
+                db.session.commit()
 
-            data_employes.archivo = None
-            db.session.commit()
+                data_employes.archivo = None
+                db.session.commit()
 
-        #Registrar LOG - asignar pc
-        state_asignado = State.query.filter_by(name_state='asignado').first_or_404()
-        new_log_asigar =  Log(log_pc_id=data_pc.cod_pc,log_pc_nc=data_pc.name_computer,log_pc_st=data_pc.service_tag,log_date=sql_fecha,
-                              log_archivo=data_employes.archivo,log_cod_user_id=current_user.cod_user,log_cod_employe=data_employes.gps_id,
-                              log_name_employe=data_employes.lastname_user,log_state=state_asignado.name_state
-                              )
-        db.session.add(new_log_asigar)
-        db.session.commit()
-        db.session.close()
-        return jsonify({"mensaje":"Asigando Exitosamente"})
+            #Registrar LOG - asignar pc
+            state_asignado = State.query.filter_by(name_state='asignado').first_or_404()
+            new_log_asigar =  Log(log_pc_id=data_pc.cod_pc,log_pc_nc=data_pc.name_computer,log_pc_st=data_pc.service_tag,log_date=sql_fecha,
+                                log_archivo=data_employes.archivo,log_cod_user_id=current_user.cod_user,log_cod_employe=data_employes.gps_id,
+                                log_name_employe=data_employes.lastname_user,log_state=state_asignado.name_state
+                                )
+            db.session.add(new_log_asigar)
+            db.session.commit()
+            db.session.close()
+            return jsonify({"mensaje":"Asigando Exitosamente"}),200
+        elif data_employes:
+            
+            if data_employes.gps_id == gps and data_employes.lastname_user == lastname:
+                return jsonify({"mensaje":"datos iguales"}),201
+            
+            if data_employes:
+                return jsonify({"mensaje":"El gps id ya existe"}),402
+            else:
+                data_employes.gps_id = gps
+
+
+
+            return jsonify({"mensaje":"editar nombre o st"}),401
+        
     return jsonify({"estado":"error al editar"})
 
 @app.route('/reasignar_pc', methods = ['POST'])
@@ -772,11 +790,11 @@ def prueba_datos():
     #    db.session.commit()
 
 
-    for _ in range(30):
-        new_dato = Pc(name_computer=fake.unique.license_plate(),service_tag=fake.unique.random_int(),date_received=fake.date_time_this_year(),cod_model_id=1,cod_brand_id=1,cod_type_id=1,cod_user_id=1,cod_state_id=fake.random_int(max=5,min=1))
-        db.session.add(new_dato)
-        db.session.commit()
-         
+    #for _ in range(30):
+    #    new_dato = Pc(name_computer=fake.unique.license_plate(),service_tag=fake.unique.random_int(),date_received=fake.date_time_this_year(),cod_model_id=1,cod_brand_id=1,cod_type_id=1,cod_user_id=1,cod_state_id=fake.random_int(max=5,min=1))
+    #    db.session.add(new_dato)
+    #    db.session.commit()
+
     return jsonify({"datos":"random"})
 
 with app.app_context():
