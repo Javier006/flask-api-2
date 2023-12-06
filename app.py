@@ -142,17 +142,20 @@ def edit_employe():
 
     if request.method == 'POST':
 
+        cod = request.form['cod_pusers']
         gps = request.form['gps_id']
         lastname = request.form['lastname']
         service_tag = request.form['service_tag']
         archivo = request.files.get('pdf_file')
         date_delivery = request.form['date']
 
+
         current_user_id = get_jwt_identity()
         current_user = Users.query.get(current_user_id)
 
         data_pc = Pc.query.filter_by(service_tag=service_tag).first()
         data_employes = Employes.query.filter_by(gps_id=gps).first()
+        cod_usuario = Employes.query.filter_by(cod_employes=cod).first()
 
         #cambiar fecha a sqlserver...
         new_date = datetime.strptime(date_delivery,'%Y-%m-%dT%H:%M')
@@ -204,28 +207,29 @@ def edit_employe():
             db.session.add(new_log_asigar)
             db.session.commit()
             db.session.close()
-            return jsonify({"mensaje":"Asigando Exitosamente"}),200
-        elif data_employes:
-            
-            if data_employes.gps_id == gps and data_employes.lastname_user == lastname:
-                return jsonify({"mensaje":"datos iguales"}),201
-            
-            if data_employes:
-                return jsonify({"mensaje":"El gps id ya existe"}),402
-            else:
-                data_employes.gps_id = gps
-
-
-
-            return jsonify({"mensaje":"editar nombre o st"}),401
+            return jsonify({"mensaje":"Asigando Exitosamente"}),205
         
-    return jsonify({"estado":"error al editar"})
+        if cod_usuario:
+            if cod_usuario.lastname_user != lastname or cod_usuario.gps_id != gps:
+
+                cod_usuario.lastname_user = lastname
+                db.session.commit()
+
+                if data_employes is None:
+                    cod_usuario.gps_id = gps
+                    db.session.commit()
+            else:
+                return jsonify({"mensaje":"nombre y gps iguales"}),401
+        return jsonify({"mensaje":"usuario editado"})
+        
+    return jsonify({"estado":"error al editar"}),400
 
 @app.route('/reasignar_pc', methods = ['POST'])
 @jwt_required()
 def reasigar():
     if request.method == 'POST':
 
+        cod = request.form['cod_pusers']
         st = request.form['service_tag']
         state = request.form['state']
         new_st = request.form['new_st']
