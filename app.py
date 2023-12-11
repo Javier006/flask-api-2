@@ -198,6 +198,16 @@ def edit_employe():
                 data_employes.archivo = None
                 db.session.commit()
 
+            if cod_usuario:
+                if cod_usuario.lastname_user != lastname or cod_usuario.gps_id != gps:
+
+                    cod_usuario.lastname_user = lastname
+                    db.session.commit()
+
+                    if data_employes is None:
+                        cod_usuario.gps_id = gps
+                        db.session.commit()
+
             #Registrar LOG - asignar pc
             state_asignado = State.query.filter_by(name_state='asignado').first_or_404()
             new_log_asigar =  Log(log_pc_id=data_pc.cod_pc,log_pc_nc=data_pc.name_computer,log_pc_st=data_pc.service_tag,log_date=sql_fecha,
@@ -230,6 +240,8 @@ def reasigar():
     if request.method == 'POST':
 
         cod = request.form['cod_pusers']
+        gps = request.form['gps_id']
+        lastname = request.form['lastname']
         st = request.form['service_tag']
         state = request.form['state']
         new_st = request.form['new_st']
@@ -238,9 +250,9 @@ def reasigar():
         view = request.form['view']
 
         existe_st = Pc.query.filter_by(service_tag=st).first()
-        
+        cod_usuario = Employes.query.filter_by(cod_employes=cod).first()
         existe_new_st = Pc.query.filter_by(service_tag=new_st).first()
-
+        data_employes = Employes.query.filter_by(gps_id=gps).first()
         buscar_id_employe = Employes.query.filter_by(cod_pc_id = existe_st.cod_pc).first()
 
         current_user_id = get_jwt_identity()
@@ -292,6 +304,16 @@ def reasigar():
                         buscar_id_employe.archivo = None
                         db.session.commit()
 
+                    if cod_usuario.lastname_user != lastname or cod_usuario.gps_id != gps:
+                        cod_usuario.lastname_user = lastname
+                        db.session.commit()
+                        jsonify({"mensaje":"nombre actualizados"})
+
+                        if data_employes is None:
+                            cod_usuario.gps_id = gps
+                            db.session.commit()
+                            jsonify({"mensaje":"gps actualizados"})
+
                     #LOG-REASIGNAR
                     state_asignado = State.query.filter_by(name_state='asignado').first_or_404()
                     new_log_reasignar = Log(log_pc_id=existe_new_st.cod_pc,log_pc_nc=existe_new_st.name_computer,log_pc_st=existe_new_st.service_tag,
@@ -302,9 +324,21 @@ def reasigar():
                     db.session.commit()
                     db.session.close()
 
+
+
                     return jsonify({"mensaje":"computador reasignado"}),200
+            return jsonify({"mensaje":"no hay computadores para asignaar"}),402
         elif view == '2':
             
+            if cod_usuario.lastname_user != lastname or cod_usuario.gps_id != gps:
+                cod_usuario.lastname_user = lastname
+                db.session.commit()
+                jsonify({"mensaje":"nombre actualizados"})
+                if data_employes is None:
+                    cod_usuario.gps_id = gps
+                    db.session.commit()
+                    jsonify({"mensaje":"gps actualizados"})
+
             #Log-Quitar
             state_asignado = State.query.filter_by(cod_state=state).first_or_404()
             new_log_quitar = Log(log_pc_id=existe_st.cod_pc,log_pc_nc=existe_st.name_computer,log_pc_st=existe_st.service_tag,
@@ -336,6 +370,15 @@ def reasigar():
         elif view == '3':
             #cambiar o editar archivo
 
+            if cod_usuario.lastname_user != lastname or cod_usuario.gps_id != gps:
+                cod_usuario.lastname_user = lastname
+                db.session.commit()
+                jsonify({"mensaje":"nombre actualizados"})
+                if data_employes is None:
+                    cod_usuario.gps_id = gps
+                    db.session.commit()
+                    jsonify({"mensaje":"gps actualizados"})
+
             if archivo and buscar_id_employe:
                 #asignar archivo
                 filename = secure_filename(archivo.filename)
@@ -352,6 +395,14 @@ def reasigar():
                 db.session.commit()
                 db.session.close()
                 return jsonify({"mensaje":"computador reasignado"}),203
+        elif cod_usuario.lastname_user != lastname or cod_usuario.gps_id != gps:
+            cod_usuario.lastname_user = lastname
+            db.session.commit()
+
+            if data_employes is None:
+                cod_usuario.gps_id = gps
+                db.session.commit()
+            jsonify({"mensaje":"nombre o gps actualizados"})
         else:
             return jsonify({"mensaje":"debe seleccionar una opción"}),401
     return jsonify({"mensaje":"error al actualizar"})
@@ -490,6 +541,18 @@ def delete_pc(cod):
         return jsonify({"mensaje":"eliminado"})
     return jsonify({"mensaje":"error al eliminar"})
 
+@app.route('/delete_employe/<int:cod>', methods = ['DELETE'])
+def delete_employe(cod):
+    if request.method == 'DELETE':
+        borrar = Employes.query.get_or_404(cod)
+
+        db.session.delete(borrar)
+        db.session.commit()
+        db.session.close()
+        
+        return jsonify({"mensaje":"eliminado"})
+    return jsonify({"mensaje":"error al eliminar"})
+
 @app.route('/add_brand', methods = ['POST'])
 def add_brand():
 
@@ -509,13 +572,16 @@ def delete_brand():
     if request.method== 'POST':
         cod = request.form['cod_brand']
         existe_brand = Brand.query.filter_by(cod_brand=cod).first()
-        if cod != 0:
-            if existe_brand:   
+        existe_pc_brand = Pc.query.filter_by(cod_brand_id=cod).first()
+        if int(cod) != 0:
+            if existe_pc_brand is None:   
                 db.session.delete(existe_brand)
                 db.session.commit()
                 db.session.close() 
                 return jsonify({"mensaje":"marca eliminada"})
-        return jsonify({"mensaje":"Debe seleccionar una marca para eliminar"}), 401
+            else:
+                return jsonify({"mensaje":"no puede ser eliminada"}),402
+        return jsonify({"mensaje":"Debe elegir marca"}), 401
     return  jsonify({"mensaje":"error al eliminar"})
 
 @app.route('/add_model', methods = ['POST'])
@@ -537,12 +603,15 @@ def delete_modelo():
     if request.method== 'POST':
         cod = request.form['cod_model']
         existe_modelo = Model.query.filter_by(cod_model=cod).first()
-        if cod != 0:
-            if existe_modelo:   
+        existe_pc_modelo = Pc.query.filter_by(cod_model_id=cod).first()
+        if int(cod) != 0:
+            if existe_pc_modelo is None:   
                 db.session.delete(existe_modelo)
                 db.session.commit()
                 db.session.close() 
                 return jsonify({"mensaje":"modelo eliminada"})
+            else:
+                return jsonify({"mensaje":"no puede ser eliminada"}),402
         return jsonify({"mensaje":"Debe seleccionar una modelo para eliminar"}), 401
     return  jsonify({"mensaje":"error al eliminar"})
 
@@ -565,12 +634,15 @@ def delete_tipo():
     if request.method== 'POST':
         cod = request.form['cod_type']
         existe_tipo = Type.query.filter_by(cod_type=cod).first()
-        if cod != 0:
-            if existe_tipo:   
+        existe_pc_tipo = Pc.query.filter_by(cod_type_id=cod).first()
+        if int(cod) != 0:
+            if existe_pc_tipo is None:   
                 db.session.delete(existe_tipo)
                 db.session.commit()
                 db.session.close() 
                 return jsonify({"mensaje":"tipo eliminada"})
+            else:
+                return jsonify({"mensaje":"no puede ser eliminada"}),402
         return jsonify({"mensaje":"Debe seleccionar un tipo para eliminar"}), 401
     return  jsonify({"mensaje":"error al eliminar"})
 
@@ -645,7 +717,7 @@ def get_pc_users():
 @app.route('/get_pc', methods = ['GET','POST'])
 def get_pc():
 
-    resultado = db.session.query(Pc,Pc.cod_pc,Pc.name_computer,Pc.service_tag,Pc.date_received,Employes.lastname_user,Brand.name_brand,Model.name_model,Type.name_type,State.name_state)\
+    resultado = db.session.query(Pc,Pc.cod_pc,Pc.name_computer,Pc.service_tag,Pc.date_received,Employes.lastname_user,Brand.cod_brand,Brand.name_brand,Model.cod_model,Model.name_model,Type.cod_type,Type.name_type,State.cod_state,State.name_state)\
                 .join(Brand, Pc.cod_brand_id == Brand.cod_brand)\
                 .join(Model, Pc.cod_model_id == Model.cod_model)\
                 .join(Type, Pc.cod_type_id == Type.cod_type)\
@@ -670,9 +742,13 @@ def get_pc():
             'name_computer': computer.name_computer,
             'service_tag': computer.service_tag,
             'name_state': computer.name_state,
+            'cod_state' : computer.cod_state,
             'date_received': computer.date_received,
+            'cod_model' : computer.cod_model,
             'name_model': computer.name_model,
+            'cod_brand' : computer.cod_brand,
             'name_brand': computer.name_brand,
+            'cod_type'  : computer.cod_type,
             'name_type': computer.name_type,
             'name_user': computer.lastname_user
             
@@ -695,9 +771,8 @@ def get_historial():
                 Log.log_cod_employe,
                 Log.log_name_employe
                 )\
-                .order_by(Log.log_pc_id.desc())\
-                .order_by(Log.cod_log.desc())\
                 .order_by(Log.log_date.desc())\
+                .order_by(Log.log_pc_id.desc())\
                 .all()
 
     data = []
