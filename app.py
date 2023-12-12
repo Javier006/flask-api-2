@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, request, make_response, send_from_directory
+from flask import Flask, jsonify,Response, request, make_response, send_from_directory
 from flask_cors import CORS
 import os, uuid
 from datetime import timedelta, datetime
@@ -7,14 +7,15 @@ from flask_migrate import Migrate
 from werkzeug.utils import secure_filename
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 from models import db, Users, Profiles, Users_profiles, Type, Model, Brand, State, Pc, Employes, Employes_state, Log, Prueba
-
+import openpyxl
+import io
 ####prueba de datos
 from faker import Faker
 fake = Faker()
 
 #####
 
-
+wb = openpyxl.Workbook()
 
 app = Flask(__name__)
 
@@ -163,7 +164,7 @@ def edit_employe():
         sql_fecha = new_date.strftime('%Y-%m-%d %H:%M:%S')
 
 
-        if int(service_tag) > 0:
+        if service_tag:
             
             if archivo:
                 # tomar archivo y poner otro nombre
@@ -816,6 +817,26 @@ def get_noasignado():
                     })
     return jsonify(data)
 
+@app.route('/inform_excel')
+def iforme():
+    output = io.BytesIO()
+    productos = [
+    ('producto_1', 'a859', 1500, 9.95),
+    ('producto_2', 'b125', 600, 4.95),
+    ('producto_3', 'c764', 200, 19.95),
+    ('producto_4', 'd399', 2000, 49.95)]
+
+    hoja = wb.active
+
+    hoja.append(('Nombre','Referencia','Stock','Precio'))
+
+    for producto in productos:
+        hoja.append(producto)
+
+    wb.save(output)
+    
+    output.seek(0)
+    return Response(output,mimetype="application/ms-excel", headers={"Content-Disposition":"attachment;filename=facturas_porteria.xlsx"})
 
 @app.route('/datos_prueba')
 def addu():
@@ -882,4 +903,4 @@ with app.app_context():
 
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(host='0.0.0.0',port=8000,debug=True)
