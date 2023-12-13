@@ -7,15 +7,14 @@ from flask_migrate import Migrate
 from werkzeug.utils import secure_filename
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 from models import db, Users, Profiles, Users_profiles, Type, Model, Brand, State, Pc, Employes, Employes_state, Log, Prueba
-import openpyxl
-import io
+from openpyxl import Workbook
+from openpyxl.utils import get_column_letter
+import io , socket
 ####prueba de datos
 from faker import Faker
 fake = Faker()
 
 #####
-
-wb = openpyxl.Workbook()
 
 app = Flask(__name__)
 
@@ -90,7 +89,7 @@ def register():
 def check_auth():
     current_user_id = get_jwt_identity()
     current_user = Users.query.get(current_user_id)
-
+    #db.session.get
     user_profile = Users_profiles.query.filter_by(cod_user_id=current_user.cod_user).first()
 
     user_profile_details = {
@@ -343,8 +342,8 @@ def reasigar():
             #Log-Quitar
             state_asignado = State.query.filter_by(cod_state=state).first_or_404()
             new_log_quitar = Log(log_pc_id=existe_st.cod_pc,log_pc_nc=existe_st.name_computer,log_pc_st=existe_st.service_tag,
-                                log_date=sql_fecha,log_state='Removido',log_archivo=buscar_id_employe.archivo,
-                                log_cod_user_id=current_user.cod_user,log_cod_employe=buscar_id_employe.cod_employes,
+                                log_date=sql_fecha,log_state='removido',log_archivo=buscar_id_employe.archivo,
+                                log_cod_user_id=current_user.cod_user,log_cod_employe=buscar_id_employe.gps_id,
                                 log_name_employe=buscar_id_employe.lastname_user
                                  )
             db.session.add(new_log_quitar)
@@ -805,7 +804,7 @@ def listado():
 @app.route('/get_noasignado',  methods = ['GET'])
 def get_noasignado():
 
-    resultado = db.session.query(Pc, Pc.service_tag,State.cod_state)\
+    resultado = db.session.query(Pc, Pc.service_tag,State.cod_state,Pc.name_computer)\
                 .join(State, Pc.cod_state_id == State.cod_state)\
                 .filter(State.cod_state == 2)\
                 .all()
@@ -813,30 +812,118 @@ def get_noasignado():
     for d in resultado:
         data.append({ 
                     'state' : d.cod_state,
-                    'service_tag' : d.service_tag   
+                    'service_tag' : d.service_tag,
+                    'name_computer' : d.name_computer
                     })
     return jsonify(data)
 
-@app.route('/inform_excel')
-def iforme():
+@app.route('/inform_excel',  methods = ['GET'])
+def informe():
     output = io.BytesIO()
-    productos = [
-    ('producto_1', 'a859', 1500, 9.95),
-    ('producto_2', 'b125', 600, 4.95),
-    ('producto_3', 'c764', 200, 19.95),
-    ('producto_4', 'd399', 2000, 49.95)]
-
+    wb = Workbook()
     hoja = wb.active
 
-    hoja.append(('Nombre','Referencia','Stock','Precio'))
+    resultado = db.session.query(Employes.gps_id, Employes.lastname_user, Employes.cod_pc_id, Pc.name_computer, Pc.service_tag, Brand.name_brand, Model.name_model, Type.name_type, Employes.date_delivery, State.name_state)\
+        .join(Pc, Pc.cod_pc == Employes.cod_pc_id, isouter=True)\
+        .join(Brand, Pc.cod_brand_id == Brand.cod_brand, isouter=True)\
+        .join(Model, Pc.cod_model_id == Model.cod_model, isouter=True)\
+        .join(Type, Pc.cod_type_id == Type.cod_type, isouter=True)\
+        .join(State, Pc.cod_state_id == State.cod_state, isouter=True)\
+        .order_by(
+            db.case(
+                (Pc.cod_state_id == 1, 0),
+                (Employes.cod_pc_id == None, 1),
+                else_=2))\
+        .all()
 
-    for producto in productos:
-        hoja.append(producto)
+    headers = ['GPS ID', 'NOMBRE EMPLEADO', 'NOMBRE COMPUTADOR', 'SERVICE TAG', 'MARCA', 'MODELO', 'TIPO', 'FECHA ENTREGA', 'ESTADO']
+
+    hoja.append(headers)
+
+    # Ajustar el ancho de las columnas
+    for col_num, value in enumerate(headers, 1):
+        column_letter = get_column_letter(col_num)
+        hoja.column_dimensions[column_letter].width = max(len(str(value)) + 5, 15)
+
+    for computer in resultado:
+        hoja.append([
+            computer.gps_id,
+            computer.lastname_user,
+            computer.name_computer,
+            computer.service_tag,
+            computer.name_brand,
+            computer.name_model,
+            computer.name_type,
+            computer.date_delivery,
+            computer.name_state
+        ])
 
     wb.save(output)
-    
     output.seek(0)
-    return Response(output,mimetype="application/ms-excel", headers={"Content-Disposition":"attachment;filename=facturas_porteria.xlsx"})
+
+    return Response(output, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", headers={"Content-Disposition": "attachment;filename=afn.xlsx"})
+
+@app.route('/informe_log',methods = ['GET'])
+def informe_log():
+    output = io.BytesIO()
+    wb = Workbook()
+    hoja = wb.active
+
+    resultado = db.session.query(Log.log_pc_id,Log.log_pc_nc,Log.log_pc_st,Log.log_date,Log.log_state,Log.log_cod_employe,Log.log_name_employe,Users.nick_name)\
+            .join(Users, Log.log_cod_user_id == Users.cod_user)\
+             .order_by(Log.log_date.desc())\
+            .order_by(Log.log_pc_id.desc())\
+            .all()
+
+
+    headers = ['CODIGO PC', 'NOMBRE COMPUTADOR', 'SERVICE TAG', 'FECHA', 'ESTADO', 'USUARIO CREADOR', 'GPS ID', 'NOMBRE EMPLEADO']
+
+    hoja.append(headers)
+
+    # Ajustar el ancho de las columnas
+    for col_num, value in enumerate(headers, 1):
+        column_letter = get_column_letter(col_num)
+        hoja.column_dimensions[column_letter].width = max(len(str(value)) + 5, 20)
+
+    for log_afn in resultado:
+        hoja.append([
+            log_afn.log_pc_id,
+            log_afn.log_pc_nc,
+            log_afn.log_pc_st,
+            log_afn.log_date,
+            log_afn.log_state,
+            log_afn.nick_name,
+            log_afn.log_cod_employe,
+            log_afn.log_name_employe
+        ])
+
+    wb.save(output)
+    output.seek(0)
+
+    return Response(output, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", headers={"Content-Disposition": "attachment;filename=afn_log.xlsx"})
+
+@app.route('/consulta')
+def consulta():
+
+    resultado = db.session.query(Log,)\
+            .order_by(Log.log_pc_id,Log.log_date.desc())\
+            .all()
+    
+    data = []
+
+    for computer in resultado:
+        data.append({
+            'log_pc_id': computer.log_pc_id,
+            'log_pc_nc': computer.log_pc_nc,
+            'log_pc_st': computer.log_pc_st,
+            'log_date': computer.log_date,
+            'log_state': computer.log_state,
+            'log_cod_user_id': computer.log_cod_user_id,
+            'log_cod_employe': computer.log_cod_employe,
+            'log_name_employe': computer.log_name_employe
+        })       
+
+    return jsonify(data)
 
 @app.route('/datos_prueba')
 def addu():
@@ -874,7 +961,6 @@ def addu():
 
     return jsonify({'datos':'Cargados'})
 
-
 ###prueba datos random
 @app.route('/prueba_datos')
 def prueba_datos():
@@ -903,4 +989,6 @@ with app.app_context():
 
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0',port=8000,debug=True)
+    hostname = socket.gethostname()
+    #ip_address = socket.gethostbyname(hostname)
+    app.run(host=hostname,port=8000,debug=True)

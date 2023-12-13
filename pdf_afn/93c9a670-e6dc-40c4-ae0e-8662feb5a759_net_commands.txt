@@ -1,0 +1,15 @@
+
+#crear proyecto
+dotnet new console
+dotnet new console --use-program-main
+
+
+#iniciar app
+dotnet run
+
+
+# depurar app
+.NET: Generate Assets for Build and Debug
+
+
+
