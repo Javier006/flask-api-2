@@ -7,9 +7,9 @@ from flask_migrate import Migrate
 from werkzeug.utils import secure_filename
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 from models import db, Users, Profiles, Users_profiles, Type, Model, Brand, State, Pc, Employes, Employes_state, Log, Prueba
-from openpyxl import Workbook
+from openpyxl import Workbook, load_workbook
 from openpyxl.utils import get_column_letter
-import io , socket
+import io , socket, pyodbc
 ####prueba de datos
 from faker import Faker
 fake = Faker()
@@ -163,7 +163,7 @@ def edit_employe():
         sql_fecha = new_date.strftime('%Y-%m-%d %H:%M:%S')
 
 
-        if service_tag:
+        if service_tag and service_tag != '0':
             
             if archivo:
                 # tomar archivo y poner otro nombre
@@ -221,18 +221,22 @@ def edit_employe():
         
         if cod_usuario:
             if cod_usuario.lastname_user != lastname or cod_usuario.gps_id != gps:
-
-                cod_usuario.lastname_user = lastname
-                db.session.commit()
-
                 if data_employes is None:
                     cod_usuario.gps_id = gps
                     db.session.commit()
+                    cod_usuario.lastname_user = lastname
+                    db.session.commit()
+                    return jsonify({"mensaje":"datos actualizados"}),200
+                elif cod_usuario.lastname_user != lastname:
+                    cod_usuario.lastname_user = lastname
+                    db.session.commit()
+                    return jsonify({"mensaje":"datos actualizados"}),200
+                elif data_employes:
+                    return jsonify({"mensaje":"gps existe"}),403
             else:
-                return jsonify({"mensaje":"nombre y gps iguales"}),401
-        return jsonify({"mensaje":"usuario editado"})
-        
-    return jsonify({"estado":"error al editar"}),400
+                return jsonify({"estado":"no actualizar"}),401
+            
+    return jsonify({"estado":"error de conexion"}),400
 
 @app.route('/reasignar_pc', methods = ['POST'])
 @jwt_required()
@@ -982,6 +986,73 @@ def prueba_datos():
     #    db.session.commit()
 
     return jsonify({"datos":"random"})
+
+@app.route('/ExcelData', methods = ['GET','POST'])
+def excelData():
+
+    if request.method == 'POST':
+        if 'excel_file' not in request.files:
+            return jsonify({"mensaje":"no se adjunto archivo"}),401
+
+        excel_file = request.files['excel_file']
+
+        if excel_file.filename == '':
+            return jsonify({"mensaje":"no se adjunto archivo"}),401
+        
+        if excel_file:
+
+            wb = load_workbook(excel_file)
+            sheet = wb.active
+            
+            for row in sheet.iter_rows(min_row=2):
+                gps_id = row[0].value
+                lastname_user = row[1].value
+                name_computer = row[2].value
+                brand_name = row[4].value
+                model_name = row[5].value
+                type_name = row[6].value
+                #buscar nombre de cod
+                search_brand = Brand.query.filter_by(name_brand=brand_name).first()
+                search_model = Model.query.filter_by(name_model=model_name).first()
+                search_type = Type.query.filter_by(name_type=type_name).first()
+
+                if search_brand:
+                    brand = search_brand.obtenerCod()
+
+                if search_model:
+                    modelo = search_model.obtenerCod()
+
+                if search_type:
+                    tipo = search_type.obtenerCod()
+
+                #st repetira
+
+                exist_service_tag = row[3].value
+                exist_st = Pc.query.filter_by(service_tag=exist_service_tag).first()
+
+                if exist_st:
+                    exist_st.name_computer = name_computer
+                    exist_st.cod_brand_id = brand
+                else:
+                    service_tagg = row[3].value
+                    new_computer = Pc(name_computer=name_computer,service_tag=service_tagg,cod_brand_id=brand,cod_state_id=2)
+                    db.session.add(new_computer)
+                    db.session.commit()
+
+                    #exist_st.cod_type_id = tipo
+                    #exist_st.cod_modal_id = modelo
+            
+            #    new_usuario = Employes(gps_id=gps_id,lastname_user=lastname_user,cod_employe_id=1)
+            #    db.session.add(new_usuario)
+            #    db.session.commit()
+
+            
+
+            db.session.close()
+        return jsonify({"mensaje":"datos ingresados"})
+
+    return jsonify({"mensaje":"Error conexion"}),402
+
 
 with app.app_context():
     db.create_all()

@@ -7,7 +7,7 @@ db = SQLAlchemy()
 class Users(db.Model):
     __tablename__ = 'users'
     cod_user = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    nick_name = db.Column(db.String(20), nullable=False, unique=True)
+    nick_name = db.Column(db.String(50), nullable=False, unique=True)
     u_password = db.Column(db.String(80), nullable=False)
 
 class Profiles(db.Model):
@@ -30,7 +30,7 @@ class Users_profiles(db.Model):
 class Type(db.Model):
     __tablename__ = 'type'
     cod_type = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    name_type = db.Column(db.String(20))
+    name_type = db.Column(db.String(50))
 
     def obtener(self):
         return{
@@ -38,10 +38,13 @@ class Type(db.Model):
             'name_type':self.name_type
         }
     
+    def obtenerCod(self):
+        return self.cod_type
+    
 class State(db.Model):
     __tablename__= 'state'
     cod_state = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    name_state = db.Column(db.String(20))
+    name_state = db.Column(db.String(50))
 
     def obtener(self):
         return{
@@ -52,13 +55,16 @@ class State(db.Model):
 class Model(db.Model):
     __tabalename__ = 'model'
     cod_model = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    name_model = db.Column(db.String(20))
+    name_model = db.Column(db.String(50))
 
     def obtener(self):
         return{
             'cod_model':self.cod_model,
             'name_model':self.name_model
         }
+    
+    def obtenerCod(self):
+        return self.cod_model
 
 class Brand(db.Model):
     __tablename__ = 'brand'
@@ -70,6 +76,10 @@ class Brand(db.Model):
             'cod_brand':self.cod_brand,
             'name_brand':self.name_brand
         }
+    
+    def obtenerCod(self):
+        return self.cod_brand
+        
 
 class Pc(db.Model):
     __tablename__= 'pc'
