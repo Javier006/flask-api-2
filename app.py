@@ -19,9 +19,9 @@ fake = Faker()
 app = Flask(__name__)
 
 # Configuración base de datos myql
-#app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql://root@localhost/afn'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql://root@localhost/afn'
 
-app.config['SQLALCHEMY_DATABASE_URI'] = 'mssql+pyodbc://afn:123@(localdb)\dbprueba/sistema_afn?driver=ODBC+Driver+17+for+SQL+Server'
+#app.config['SQLALCHEMY_DATABASE_URI'] = 'mssql+pyodbc://afn:123@(localdb)\dbprueba/sistema_afn?driver=ODBC+Driver+17+for+SQL+Server'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 #folder pdf
 app.config['UPLOAD_FOLDER'] = './pdf_afn'
@@ -987,23 +987,21 @@ def prueba_datos():
 
     return jsonify({"datos":"random"})
 
-@app.route('/ExcelData', methods = ['GET','POST'])
+@app.route('/ExcelData', methods=['GET', 'POST'])
 def excelData():
-
     if request.method == 'POST':
         if 'excel_file' not in request.files:
-            return jsonify({"mensaje":"no se adjunto archivo"}),401
+            return jsonify({"mensaje": "No se adjuntó archivo"}), 401
 
         excel_file = request.files['excel_file']
 
         if excel_file.filename == '':
-            return jsonify({"mensaje":"no se adjunto archivo"}),401
-        
-        if excel_file:
+            return jsonify({"mensaje": "No se adjuntó archivo"}), 401
 
+        if excel_file:
             wb = load_workbook(excel_file)
             sheet = wb.active
-            
+
             for row in sheet.iter_rows(min_row=2):
                 gps_id = row[0].value
                 lastname_user = row[1].value
@@ -1011,47 +1009,39 @@ def excelData():
                 brand_name = row[4].value
                 model_name = row[5].value
                 type_name = row[6].value
-                #buscar nombre de cod
+
+                brand = None
+                modelo = None
+                tipo = None
+
                 search_brand = Brand.query.filter_by(name_brand=brand_name).first()
                 search_model = Model.query.filter_by(name_model=model_name).first()
                 search_type = Type.query.filter_by(name_type=type_name).first()
 
-                if search_brand:
-                    brand = search_brand.obtenerCod()
+                brand = search_brand.obtenerCod()
 
-                if search_model:
-                    modelo = search_model.obtenerCod()
-
-                if search_type:
-                    tipo = search_type.obtenerCod()
-
-                #st repetira
+                modelo = search_model.obtenerCod()
+                
+                tipo = search_type.obtenerCod()
 
                 exist_service_tag = row[3].value
                 exist_st = Pc.query.filter_by(service_tag=exist_service_tag).first()
 
-                if exist_st:
-                    exist_st.name_computer = name_computer
-                    exist_st.cod_brand_id = brand
-                else:
-                    service_tagg = row[3].value
-                    new_computer = Pc(name_computer=name_computer,service_tag=service_tagg,cod_brand_id=brand,cod_state_id=2)
-                    db.session.add(new_computer)
-                    db.session.commit()
+                #if exist_st:
+                #    exist_st.name_computer = name_computer
+                #    exist_st.cod_brand_id = brand
+                #    exist_st.cod_type_id = tipo
+                #    exist_st.cod_modal_id = modelo
+                #else:
+                #    service_tagg = row[3].value
+                #    new_computer = Pc(name_computer=name_computer, service_tag=service_tagg,cod_brand_id=brand, cod_state_id=2, cod_type_id=tipo, cod_model_id=modelo)
+                #    db.session.add(new_computer)
 
-                    #exist_st.cod_type_id = tipo
-                    #exist_st.cod_modal_id = modelo
-            
-            #    new_usuario = Employes(gps_id=gps_id,lastname_user=lastname_user,cod_employe_id=1)
-            #    db.session.add(new_usuario)
-            #    db.session.commit()
-
-            
-
+            db.session.commit()
             db.session.close()
-        return jsonify({"mensaje":"datos ingresados"})
+            return jsonify({"mensaje": "Datos ingresados"})
 
-    return jsonify({"mensaje":"Error conexion"}),402
+    return jsonify({"mensaje": "Error conexión"}), 402
 
 
 with app.app_context():
@@ -1060,6 +1050,7 @@ with app.app_context():
 
 
 if __name__ == '__main__':
-    hostname = socket.gethostname()
+    #hostname = socket.gethostname()
     #ip_address = socket.gethostbyname(hostname)
-    app.run(host=hostname,port=8000,debug=True)
+    #app.run(host=hostname,port=8000,debug=True)
+    app.run(debug=True)
