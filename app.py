@@ -1002,71 +1002,87 @@ def excelData():
             wb = load_workbook(excel_file)
             sheet = wb.active
 
-            for row in sheet.iter_rows(min_row=2):
-                #gps_id = row[0].value
-                #lastname_user = row[1].value
-                brand_name = row[4].value
-                model_name = row[5].value
-                type_name = row[6].value
+            #agregar pc
+            #for row in sheet.iter_rows(min_row=2):
+            #    #gps_id = row[0].value
+            #    #lastname_user = row[1].value
+            #    brand_name = row[4].value
+            #    model_name = row[5].value
+            #    type_name = row[6].value
 
-                search_brand = Brand.query.filter_by(name_brand=brand_name).first()
-                search_model = Model.query.filter_by(name_model=model_name).first()
-                search_type = Type.query.filter_by(name_type=type_name).first()
+            #    search_brand = Brand.query.filter_by(name_brand=brand_name).first()
+            #    search_model = Model.query.filter_by(name_model=model_name).first()
+            #    search_type = Type.query.filter_by(name_type=type_name).first()
 
 
-                if search_brand:
-                    brand = search_brand.obtenerCod()
-                else:
-                    brand = None
+            #    if search_brand:
+            #        brand = search_brand.obtenerCod()
+            #    else:
+            #        brand = None
 
-                if search_model:
-                    modelo = search_model.obtenerCod()
-                else:
-                    modelo = None
+            #    if search_model:
+            #        modelo = search_model.obtenerCod()
+            #    else:
+            #        modelo = None
 
-                if search_type:
-                    tipo = search_type.obtenerCod()
-                else:
-                    tipo = None
+            #    if search_type:
+            #        tipo = search_type.obtenerCod()
+            #    else:
+            #        tipo = None
                 
 
-                exist_service_tag = str(row[3].value)
-                exist_st = Pc.query.filter_by(service_tag=exist_service_tag).first()
-                name_computer = str(row[2].value)
-                existe_name_computer = Pc.query.filter_by(name_computer=name_computer).first()
+            #    exist_service_tag = str(row[3].value)
+            #    exist_st = Pc.query.filter_by(service_tag=exist_service_tag).first()
+            #    name_computer = str(row[2].value)
+            #    existe_name_computer = Pc.query.filter_by(name_computer=name_computer).first()
                 #print(exist_st,' GPS ID: '+str(gps_id),' Full Name: '+str(lastname_user),' NC: '+str(name_computer),' ST: '+str(exist_service_tag),'Marca :'+str(brand),' Modelo :'+str(modelo)+' Tipo :'+str(tipo))
 
-                if exist_service_tag and name_computer:
-                    if exist_st is None and existe_name_computer is None:
-                        new_computer = Pc(name_computer=name_computer, service_tag=exist_service_tag,cod_brand_id=brand, cod_state_id=2, cod_type_id=tipo, cod_model_id=modelo)
-                        db.session.add(new_computer)
-                        db.session.commit()
-                    else:
-                        #print(exist_service_tag+' duplicado')
-                        #print(name_computer+' duplicado')
-                        exist_st.name_computer = name_computer
-                        exist_st.service_tag = exist_service_tag
-                        exist_st.cod_brand_id = brand
-                        exist_st.cod_type_id = tipo
-                        exist_st.cod_model_id = modelo
-                        db.session.commit()
+            #    if exist_service_tag and name_computer:
+            #        if exist_st is None and existe_name_computer is None:
+            #            new_computer = Pc(name_computer=name_computer, service_tag=exist_service_tag,cod_brand_id=brand, cod_state_id=2, cod_type_id=tipo, cod_model_id=modelo)
+            #            db.session.add(new_computer)
+            #            db.session.commit()
+            #        else:
+            #            #print(exist_service_tag+' duplicado')
+            #            #print(name_computer+' duplicado')
+            #            exist_st.name_computer = name_computer
+            #            exist_st.service_tag = exist_service_tag
+            #            exist_st.cod_brand_id = brand
+            #            exist_st.cod_type_id = tipo
+            #            exist_st.cod_model_id = modelo
+            #            db.session.commit()
+            
+            #agregar empleado
+            #for row in sheet.iter_rows(min_row=2):
+            #    gps_id = row[0].value
+            #    lastname_user = row[1].value
+            #    exist_gps = Employes.query.filter_by(gps_id=gps_id).first()
+            #    if gps_id and lastname_user:
+            #        if exist_gps is None:
+            #            new_employe = Employes(gps_id=gps_id,lastname_user=lastname_user,cod_employe_id=1)
+            #            db.session.add(new_employe)
+            #            db.session.commit()
+            #        else:
+            #            exist_gps.gps_id = gps_id
+            #            exist_gps.lastname_user = lastname_user
+            #            db.session.commit()
+
+            #asignar pc
 
             for row in sheet.iter_rows(min_row=2):
-                gps_id = row[0].value
-                lastname_user = row[1].value
+                asignado = row[8].value
+                gps = row[0].value
+                st = row[3].value
 
-                exist_gps = Employes.query.filter_by(gps_id=gps_id).first()
+                existe_employe = Employes.query.filter_by(gps_id=gps).first()
+                #existe_st = Pc.query.filter_by(service_tag=st).first()
 
-                if gps_id and lastname_user:
-                    if exist_gps is None:
-                        new_employe = Employes(gps_id=gps_id,lastname_user=lastname_user,cod_employe_id=1)
-                        db.session.add(new_employe)
-                        db.session.commit()
-                    else:
-                        exist_gps.gps_id = gps_id
-                        exist_gps.lastname_user = lastname_user
-                        db.session.commit()
+                if existe_employe:
+                    #cod = existe_st.cod_pc
+                    #existe_employe.cod_pc_id = cod
+                    #existe_st.cod_state_id = asignado
 
+                    print('PC asignado...')
 
             db.session.close()
             return jsonify({"mensaje": "Datos ingresados"})
