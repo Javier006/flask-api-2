@@ -6,7 +6,7 @@ from flask_bcrypt import Bcrypt
 from flask_migrate import Migrate
 from werkzeug.utils import secure_filename
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
-from models import db, Users, Profiles, Users_profiles, Type, Model, Brand, State, Pc, Employes, Employes_state, Log, Prueba
+from models import db, Users, Profiles, Users_profiles, Type, Model, Brand, State, Pc, Employes, Employes_state, Log, Brandcell, Cell
 from openpyxl import Workbook, load_workbook
 from openpyxl.utils import get_column_letter
 import io , socket, pyodbc
@@ -642,7 +642,7 @@ def add_tipo():
 
 @app.route('/delete_type', methods = ['POST'])
 def delete_tipo():
-    if request.method== 'POST':
+    if request.method == 'POST':
         cod = request.form['cod_type']
         existe_tipo = Type.query.filter_by(cod_type=cod).first()
         existe_pc_tipo = Pc.query.filter_by(cod_type_id=cod).first()
@@ -656,6 +656,44 @@ def delete_tipo():
                 return jsonify({"mensaje":"no puede ser eliminada"}),402
         return jsonify({"mensaje":"Debe seleccionar un tipo para eliminar"}), 401
     return  jsonify({"mensaje":"error al eliminar"})
+
+@app.route('/add_brandcell', methods = ['POST'])
+def add_brandcell():
+    if request.method == 'POST':
+        brandcell = request.form['marca']
+        if brandcell != 'undefined' and brandcell != '':
+            new_brandcell = Brandcell(name_brand_cell=brandcell)
+            db.session.add(new_brandcell)
+            db.session.commit()
+            db.session.close()
+            return jsonify({"mensaje":"marca añadida"})
+        return jsonify({"mensaje":"debe ingresar nombre de marca"}),401
+    return jsonify({"mensaje":"error al añadir marca"})
+
+@app.route('/delete_brandcell', methods = ['POST'])
+def delete_brandcell():
+
+    if request.method == 'POST':
+        cod = request.form['marcae']
+        existe_cod = Brandcell.query.filter_by(cod_brand_cell=cod).first()
+        existe_codCell = Cell.query.filter_by(cod_brand_cell_id=cod).first()
+        if cod != '':
+            if existe_codCell is None:
+                db.session.delete(existe_cod)
+                db.session.commit()
+                db.session.close()
+                return jsonify({"mensaje":"marca eliminada"})
+            return jsonify({"mensaje":"no puede ser eliminada"}),403
+        return jsonify({"mensaje":"seleccionar opción"}),401
+    return  jsonify({"mensaje":"error al eliminar"}),402
+
+@app.route('/get_brandcell', methods = ['GET'])
+def get_brandcell():
+
+    brandcell =  Brandcell.query.all()
+    models_brandcell = [brand.obtener() for brand in brandcell]
+
+    return  jsonify(models_brandcell)
 
 @app.route('/datos', methods = ['GET'])
 def datos():

@@ -80,7 +80,6 @@ class Brand(db.Model):
     def obtenerCod(self):
         return self.cod_brand
         
-
 class Pc(db.Model):
     __tablename__= 'pc'
     cod_pc = db.Column(db.Integer, primary_key=True, autoincrement=True)
@@ -93,7 +92,6 @@ class Pc(db.Model):
     cod_user_id = db.Column(db.Integer, db.ForeignKey('users.cod_user'))
     cod_state_id = db.Column(db.Integer, db.ForeignKey('state.cod_state'))
 
-
 class Employes(db.Model):
     __tablename__ = 'employes'
     cod_employes = db.Column(db.Integer, primary_key=True, autoincrement=True)
@@ -104,6 +102,8 @@ class Employes(db.Model):
     cod_employe_id = db.Column(db.Integer, db.ForeignKey('employes_state.cod_employe_state'))
     cod_pc_id = db.Column(db.Integer, db.ForeignKey('pc.cod_pc'))
     date_delivery = db.Column(db.DateTime)
+    cod_cell_id = db.Column(db.Integer, db.ForeignKey('cell.cod_cell'))
+    date_delivery_cell = db.Column(db.DateTime)
 
 class Employes_state(db.Model):
     __tablename__= 'employes_state'
@@ -123,18 +123,32 @@ class Log(db.Model):
     log_name_employe = db.Column(db.String(100))
     log_cod_user_id = db.Column(db.Integer)
 
+class Brandcell(db.Model):
+    __tablename__='brandcell'
+    cod_brand_cell = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    name_brand_cell = db.Column(db.String(30))
 
-class Prueba(db.Model):
-    __tablename__ = 'prueba'
-    cod_employes = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    gps_id = db.Column(db.String(12))
-    lastname_user = db.Column(db.String(100))
-    archivo = db.Column(db.String(200))
-    create_date = db.Column(db.DateTime)
-    cod_employe_id = db.Column(db.Integer, db.ForeignKey('employes_state.cod_employe_state'))
-    cod_pc_id = db.Column(db.Integer, db.ForeignKey('pc.cod_pc'))
-    date_delivery = db.Column(db.DateTime)
-    
+    def obtener(self):
+        return{
+            'cod_brand_cell':self.cod_brand_cell,
+            'name_brand_cell':self.name_brand_cell
+        }
 
+class Cell(db.Model):
+    __tablename__='cell'
+    cod_cell = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    imei = db.Column(db.String(30))
+    number_cell = db.Column(db.String(13))
+    cod_brand_cell_id = db.Column(db.Integer, db.ForeignKey('brandcell.cod_brand_cell'))
+    cod_user_id = db.Column(db.Integer, db.ForeignKey('users.cod_user'))
+    cod_state_id = db.Column(db.Integer, db.ForeignKey('state.cod_state'))
 
+    def obtener(self):
+        return{
+            'cod_cell':self.cod_cell,
+            'imei':self.imei,
+            'number_cell':self.number_cell,
+            'cod_brand_cell_id':self.cod_brand_cell_id,
+            'cod_user_id':self.cod_user_id
+        }   
 
