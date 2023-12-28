@@ -1,6 +1,6 @@
 from flask import Flask, jsonify,Response, request, make_response, send_from_directory
 from flask_cors import CORS
-import os, uuid
+import os, uuid, io, socket
 from datetime import timedelta, datetime
 from flask_bcrypt import Bcrypt
 from flask_migrate import Migrate
@@ -9,7 +9,6 @@ from flask_jwt_extended import JWTManager, create_access_token, jwt_required, ge
 from models import db, Users, Profiles, Users_profiles, Type, Model, Brand, State, Pc, Employes, Employes_state, Log, Brandcell, Cell
 from openpyxl import Workbook, load_workbook
 from openpyxl.utils import get_column_letter
-import io , socket, pyodbc
 ####prueba de datos
 from faker import Faker
 fake = Faker()
@@ -58,6 +57,7 @@ def login():
 @app.route('/logout', methods=['POST'])
 @jwt_required()
 def logout():
+    
     return jsonify({'message': 'Desconectado'}), 200
 
 @app.route('/register', methods=['POST'])
@@ -75,7 +75,6 @@ def register():
         if existe_user:
             return jsonify({'message': 'El nombre de usuario ya está en uso. Elige otro.'}), 400
         
-
 
         if username != 'undefined':
             hashed_password = bcrypt.generate_password_hash(password).decode('utf-8')
@@ -95,7 +94,7 @@ def register():
 @jwt_required()
 def check_auth():
     current_user_id = get_jwt_identity()
-    current_user = Users.query.get(current_user_id)
+    current_user = Users.query.filter_by(cod_user=current_user_id).first()
     #db.session.get
     user_profile = Users_profiles.query.filter_by(cod_user_id=current_user.cod_user).first()
 
@@ -611,7 +610,7 @@ def add_modelo():
 
 @app.route('/delete_model', methods = ['POST'])
 def delete_modelo():
-    if request.method== 'POST':
+    if request.method == 'POST':
         cod = request.form['cod_model']
         existe_modelo = Model.query.filter_by(cod_model=cod).first()
         existe_pc_modelo = Pc.query.filter_by(cod_model_id=cod).first()
@@ -656,6 +655,58 @@ def delete_tipo():
                 return jsonify({"mensaje":"no puede ser eliminada"}),402
         return jsonify({"mensaje":"Debe seleccionar un tipo para eliminar"}), 401
     return  jsonify({"mensaje":"error al eliminar"})
+
+@app.route('/add_cell', methods = ['POST'])
+def add_cell():
+    if request.method == 'POST':   
+        number_cell = request.form['numero']
+        imei = request.form['imei']
+        cod = request.form['marca']
+        exist_imei = Cell.query.filter_by(imei=imei).first()
+        if number_cell and imei and cod:
+            if exist_imei:
+                return jsonify({"mensaje":"imei existe"}), 407
+            else:
+                new_cell = Cell(imei=imei,number_cell=number_cell,cod_brand_cell_id=cod)
+                db.session.add(new_cell)
+                db.session.commit()
+                db.session.close()
+                return jsonify({"mensaje":"celular creado"})
+        return jsonify({"mensaje":"error al agregar"}), 406
+    return jsonify({"mensaje":"error conexion"})
+
+@app.route('/get_cell', methods = ['GET'])
+def get_cell():
+    resultado = db.session.query(Cell.cod_cell,Cell.imei,Cell.number_cell,Brandcell.name_brand_cell,Brandcell.cod_brand_cell)\
+                .join(Brandcell, Cell.cod_brand_cell_id == Brandcell.cod_brand_cell)\
+                .all()
+   
+    data = []
+
+    for cell in resultado:
+        data.append({
+            'cod_cell': cell.cod_cell,
+            'imei':cell.imei,
+            'number_cell': cell.number_cell,
+            'name_brand_cell': cell.name_brand_cell,
+            'cod_brand_cell': cell.cod_brand_cell
+        })
+    return jsonify(data)
+
+@app.route('/delete_cell/<int:cod>', methods = ['DELETE'])
+def delete_cell(cod):
+
+    if request.method == 'DELETE':
+        
+        borrar = Cell.query.get_or_404(cod)
+
+        db.session.delete(borrar)
+        db.session.commit()
+        db.session.close()
+        
+        return jsonify({"mensaje":"eliminado"})
+
+    return jsonify({"mensaje":"error al eliminar"})
 
 @app.route('/add_brandcell', methods = ['POST'])
 def add_brandcell():
@@ -841,7 +892,6 @@ def get_historial():
         })
 
     return jsonify(data)
-
 
 @app.route('/listado', methods = ['GET','POST'])
 @jwt_required()
@@ -1135,8 +1185,6 @@ def excelData():
 
 with app.app_context():
     db.create_all()
-
-
 
 if __name__ == '__main__':
     hostname = socket.gethostname()
