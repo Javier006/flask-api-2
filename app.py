@@ -665,20 +665,22 @@ def add_cell():
         exist_imei = Cell.query.filter_by(imei=imei).first()
         if number_cell and imei and cod:
             if exist_imei:
-                return jsonify({"mensaje":"imei existe"}), 407
+                return jsonify({"mensaje":"imei existe"}), 402
             else:
-                new_cell = Cell(imei=imei,number_cell=number_cell,cod_brand_cell_id=cod)
+                buscar = State.query.filter_by(name_state='disponible').first()
+                new_cell = Cell(imei=imei,number_cell=number_cell,cod_brand_cell_id=cod,cod_state_id=buscar.cod_state)
                 db.session.add(new_cell)
                 db.session.commit()
                 db.session.close()
                 return jsonify({"mensaje":"celular creado"})
-        return jsonify({"mensaje":"error al agregar"}), 406
-    return jsonify({"mensaje":"error conexion"})
+        return jsonify({"mensaje":"error al agregar"}), 401
+    return jsonify({"mensaje":"error conexion"}),400
 
 @app.route('/get_cell', methods = ['GET'])
 def get_cell():
-    resultado = db.session.query(Cell.cod_cell,Cell.imei,Cell.number_cell,Brandcell.name_brand_cell,Brandcell.cod_brand_cell)\
+    resultado = db.session.query(Cell.cod_cell,Cell.imei,Cell.number_cell,Cell.cod_state_id,Brandcell.name_brand_cell,Brandcell.cod_brand_cell,State.name_state)\
                 .join(Brandcell, Cell.cod_brand_cell_id == Brandcell.cod_brand_cell)\
+                .join(State, Cell.cod_state_id == State.cod_state)\
                 .all()
    
     data = []
@@ -689,7 +691,9 @@ def get_cell():
             'imei':cell.imei,
             'number_cell': cell.number_cell,
             'name_brand_cell': cell.name_brand_cell,
-            'cod_brand_cell': cell.cod_brand_cell
+            'cod_brand_cell': cell.cod_brand_cell,
+            'name_state': cell.name_state,
+            'cod_state_id' : cell.cod_state_id
         })
     return jsonify(data)
 
